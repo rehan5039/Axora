@@ -1,0 +1,693 @@
+import 'package:flutter/material.dart';
+import 'package:axora/services/firebase_service.dart';
+import 'package:axora/utils/constants.dart';
+import 'package:provider/provider.dart';
+import 'package:axora/providers/theme_provider.dart';
+import 'package:axora/widgets/axora_logo.dart';
+import 'package:axora/widgets/theme_toggle_button.dart';
+import 'package:axora/widgets/theme_showcase.dart';
+
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  final _firebaseService = FirebaseService();
+  int _selectedIndex = 0;
+
+  final List<Widget> _screens = [
+    const MeditationTab(),
+    const StatisticsTab(),
+    const ProfileTab(),
+  ];
+
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDarkMode = themeProvider.isDarkMode;
+    
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        title: const AxoraLogo(fontSize: 28),
+        actions: [
+          const ThemeToggleButton(),
+          IconButton(
+            icon: Icon(
+              Icons.notifications_outlined, 
+              color: isDarkMode ? AppColors.darkText : AppColors.lightText,
+            ),
+            onPressed: () {
+              // Handle notifications
+            },
+          ),
+        ],
+      ),
+      body: _screens[_selectedIndex],
+      bottomNavigationBar: BottomNavigationBar(
+        items: const <BottomNavigationBarItem>[
+          BottomNavigationBarItem(
+            icon: Icon(Icons.self_improvement),
+            label: 'Meditate',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.bar_chart),
+            label: 'Statistics',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person),
+            label: 'Profile',
+          ),
+        ],
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
+      ),
+    );
+  }
+}
+
+class MeditationTab extends StatelessWidget {
+  const MeditationTab({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDarkMode = themeProvider.isDarkMode;
+    final textStyle = isDarkMode ? AppStyles.bodyTextDark : AppStyles.bodyTextLight;
+    final headingStyle = isDarkMode ? AppStyles.heading2Dark : AppStyles.heading2Light;
+    final user = FirebaseService().currentUser;
+    final userName = user?.displayName ?? 'Alex';
+    
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Good Morning,',
+              style: headingStyle,
+            ),
+            Text(
+              userName,
+              style: headingStyle,
+            ),
+            const SizedBox(height: 24),
+            _QuickActionButton(
+              label: 'Start a Quick Meditation',
+              onPressed: () {},
+            ),
+            const SizedBox(height: 24),
+            _SectionTitle(title: 'Today\'s Challenge'),
+            const SizedBox(height: 16),
+            _ChallengeCard(
+              title: 'Complete a 5-minute session',
+              progress: 0.4,
+            ),
+            const SizedBox(height: 24),
+            _SectionTitle(title: 'Categories'),
+            const SizedBox(height: 16),
+            const _CategoryGrid(),
+            const SizedBox(height: 24),
+            _SectionTitle(title: 'Top Sounds'),
+            const SizedBox(height: 16),
+            const _SoundSelector(),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickActionButton extends StatelessWidget {
+  final String label;
+  final VoidCallback onPressed;
+
+  const _QuickActionButton({
+    required this.label,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDarkMode = themeProvider.isDarkMode;
+    
+    return ElevatedButton(
+      onPressed: onPressed,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: isDarkMode ? AppColors.primaryGold : AppColors.primaryGreen,
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        minimumSize: const Size(double.infinity, 50),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  final String title;
+
+  const _SectionTitle({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDarkMode = themeProvider.isDarkMode;
+    final textStyle = isDarkMode ? AppStyles.bodyTextDark : AppStyles.bodyTextLight;
+    
+    return Text(
+      title,
+      style: textStyle.copyWith(
+        fontSize: 18,
+        fontWeight: FontWeight.bold,
+      ),
+    );
+  }
+}
+
+class _ChallengeCard extends StatelessWidget {
+  final String title;
+  final double progress;
+
+  const _ChallengeCard({
+    required this.title,
+    required this.progress,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDarkMode = themeProvider.isDarkMode;
+    final backgroundColor = isDarkMode ? AppColors.darkCardBackground : AppColors.lightCardBackground;
+    
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              color: isDarkMode ? AppColors.darkText : AppColors.lightText,
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: progress,
+              backgroundColor: Colors.grey.withOpacity(0.2),
+              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primaryBlue),
+              minHeight: 8,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CategoryGrid extends StatelessWidget {
+  const _CategoryGrid();
+
+  @override
+  Widget build(BuildContext context) {
+    final categories = [
+      {'name': 'Focus', 'icon': Icons.center_focus_strong},
+      {'name': 'Sleep', 'icon': Icons.nightlight_round},
+      {'name': 'Productivity', 'icon': Icons.trending_up},
+      {'name': 'Deep Relaxation', 'icon': Icons.spa},
+    ];
+    
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 1.5,
+      ),
+      itemCount: categories.length,
+      itemBuilder: (context, index) {
+        return _CategoryItem(
+          name: categories[index]['name'] as String,
+          icon: categories[index]['icon'] as IconData,
+        );
+      },
+    );
+  }
+}
+
+class _CategoryItem extends StatelessWidget {
+  final String name;
+  final IconData icon;
+
+  const _CategoryItem({
+    required this.name,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDarkMode = themeProvider.isDarkMode;
+    final backgroundColor = isDarkMode ? AppColors.darkCardBackground : AppColors.lightCardBackground;
+    final textColor = isDarkMode ? AppColors.darkText : AppColors.lightText;
+    
+    return InkWell(
+      onTap: () {},
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              color: AppColors.primaryBlue,
+              size: 28,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              name,
+              style: TextStyle(
+                color: textColor,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SoundSelector extends StatelessWidget {
+  const _SoundSelector();
+
+  @override
+  Widget build(BuildContext context) {
+    final sounds = [
+      {'name': 'Nature', 'icon': Icons.eco},
+      {'name': 'Rain', 'icon': Icons.water_drop},
+      {'name': 'Waves', 'icon': Icons.waves},
+    ];
+    
+    return SizedBox(
+      height: 80,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: sounds.length,
+        itemBuilder: (context, index) {
+          return Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: _SoundItem(
+              name: sounds[index]['name'] as String,
+              icon: sounds[index]['icon'] as IconData,
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _SoundItem extends StatelessWidget {
+  final String name;
+  final IconData icon;
+
+  const _SoundItem({
+    required this.name,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDarkMode = themeProvider.isDarkMode;
+    final backgroundColor = isDarkMode ? AppColors.darkCardBackground : AppColors.lightCardBackground;
+    final textColor = isDarkMode ? AppColors.darkText : AppColors.lightText;
+    
+    return InkWell(
+      onTap: () {},
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: 80,
+        height: 80,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                color: AppColors.primaryBlue,
+                size: 20,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                name,
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class StatisticsTab extends StatelessWidget {
+  const StatisticsTab({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDarkMode = themeProvider.isDarkMode;
+    final textStyle = isDarkMode ? AppStyles.bodyTextDark : AppStyles.bodyTextLight;
+    final headingStyle = isDarkMode ? AppStyles.heading2Dark : AppStyles.heading2Light;
+    
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Progress', style: headingStyle),
+            const SizedBox(height: 24),
+            _StatItem(label: 'Current Streak', value: '7'),
+            const SizedBox(height: 16),
+            _StatItem(label: 'Total Minutes', value: '65'),
+            const SizedBox(height: 24),
+            Text('Badges', style: headingStyle),
+            const SizedBox(height: 16),
+            const _BadgeItem(),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatItem extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _StatItem({
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDarkMode = themeProvider.isDarkMode;
+    final backgroundColor = isDarkMode ? AppColors.darkCardBackground : AppColors.lightCardBackground;
+    final textColor = isDarkMode ? AppColors.darkText : AppColors.lightText;
+    
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              color: textColor,
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              color: AppColors.primaryBlue,
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BadgeItem extends StatelessWidget {
+  const _BadgeItem();
+
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDarkMode = themeProvider.isDarkMode;
+    final backgroundColor = isDarkMode ? AppColors.darkCardBackground : AppColors.lightCardBackground;
+    final textColor = isDarkMode ? AppColors.darkText : AppColors.lightText;
+    
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: const BoxDecoration(
+              color: AppColors.primaryGold,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Novice Meditator',
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: List.generate(
+                  4,
+                  (index) => Padding(
+                    padding: const EdgeInsets.only(right: 2),
+                    child: Container(
+                      width: 16,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: index < 1 ? AppColors.primaryGold : Colors.grey.withOpacity(0.3),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class ProfileTab extends StatelessWidget {
+  const ProfileTab({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDarkMode = themeProvider.isDarkMode;
+    final textStyle = isDarkMode ? AppStyles.bodyTextDark : AppStyles.bodyTextLight;
+    final headingStyle = isDarkMode ? AppStyles.heading2Dark : AppStyles.heading2Light;
+    
+    final firebaseService = FirebaseService();
+    final user = firebaseService.currentUser;
+
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            CircleAvatar(
+              radius: 50,
+              backgroundColor: isDarkMode ? AppColors.primaryGold : AppColors.primaryGreen,
+              child: const Icon(
+                Icons.person,
+                size: 50,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              user?.displayName ?? 'Guest User',
+              style: headingStyle,
+            ),
+            Text(
+              user?.email ?? 'guest@example.com',
+              style: textStyle.copyWith(
+                color: isDarkMode ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+              ),
+            ),
+            const SizedBox(height: 32),
+            _ProfileMenuItem(
+              icon: Icons.settings,
+              title: 'Settings',
+              onTap: () {},
+            ),
+            _ProfileMenuItem(
+              icon: Icons.color_lens,
+              title: 'Theme Settings',
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const ThemeShowcase(),
+                  ),
+                );
+              },
+            ),
+            _ProfileMenuItem(
+              icon: Icons.help_outline,
+              title: 'Help & Support',
+              onTap: () {},
+            ),
+            _ProfileMenuItem(
+              icon: Icons.info_outline,
+              title: 'About Axora',
+              onTap: () {},
+            ),
+            if (user != null)
+              _ProfileMenuItem(
+                icon: Icons.logout,
+                title: 'Logout',
+                onTap: () async {
+                  await firebaseService.signOut();
+                  if (context.mounted) {
+                    Navigator.pushReplacementNamed(context, '/login');
+                  }
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileMenuItem extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final VoidCallback onTap;
+
+  const _ProfileMenuItem({
+    required this.icon,
+    required this.title,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDarkMode = themeProvider.isDarkMode;
+    final textColor = isDarkMode ? AppColors.darkText : AppColors.lightText;
+    
+    return ListTile(
+      leading: Icon(icon, color: AppColors.primaryBlue),
+      title: Text(title, style: TextStyle(color: textColor)),
+      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+      onTap: onTap,
+    );
+  }
+} 
