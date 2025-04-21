@@ -1,6 +1,7 @@
 {
   "project_info": {
     "project_number": "906770746320",
+    "firebase_url": "https://axora-5039-default-rtdb.firebaseio.com",
     "project_id": "axora-5039",
     "storage_bucket": "axora-5039.firebasestorage.app"
   },
@@ -13,6 +14,14 @@
         }
       },
       "oauth_client": [
+        {
+          "client_id": "906770746320-htao1d3js4aiked5l9p33bfp16mfab0g.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.rr.axora.axora",
+            "certificate_hash": "1b9d0a35384d244465b399a4f7644dd0065c8613"
+          }
+        },
         {
           "client_id": "906770746320-aoh8gg8krlj3el1smo6rtmrcss76uvu7.apps.googleusercontent.com",
           "client_type": 3

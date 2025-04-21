@@ -1,10 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, debugPrint;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:axora/services/user_database_service.dart';
 import 'package:axora/services/realtime_database_service.dart';
-import 'package:flutter/foundation.dart' show debugPrint;
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -20,6 +19,89 @@ class AuthService {
 
   // Get auth state changes
   Stream<User?> get authStateChanges => _auth.authStateChanges();
+
+  // Sign in anonymously
+  Future<UserCredential?> signInAnonymously() async {
+    try {
+      // Sign in anonymously with Firebase
+      final userCredential = await _auth.signInAnonymously();
+      debugPrint('Signed in anonymously with UID: ${userCredential.user?.uid}');
+      
+      // If this is a new user, save their data to all databases
+      if (userCredential.additionalUserInfo?.isNewUser ?? false) {
+        // Save to main Firestore collection
+        await _saveUserDataToFirestore(
+          userCredential.user!,
+          fullName: 'Anonymous User',
+          isAnonymous: true
+        );
+        
+        // Save to secondary Firestore database
+        try {
+          await _userDatabaseService.saveUserData(
+            userCredential.user!,
+            fullName: 'Anonymous User',
+            isAnonymous: true
+          );
+        } catch (e) {
+          debugPrint('Error saving anonymous user to secondary database: $e');
+          // Continue with sign in process even if this fails
+        }
+        
+        // Save to Realtime Database
+        try {
+          await _realtimeDatabaseService.saveUserData(
+            userCredential.user!,
+            fullName: 'Anonymous User',
+            isAnonymous: true
+          );
+        } catch (e) {
+          debugPrint('Error saving anonymous user to Realtime Database: $e');
+          // Continue with sign in process even if this fails
+        }
+      } else {
+        // Update last login timestamp in all databases
+        final firestoreUpdateData = {'lastLogin': FieldValue.serverTimestamp()};
+        final realtimeUpdateData = {'lastLogin': DateTime.now().millisecondsSinceEpoch};
+        
+        // Update Firestore
+        await _firestore
+            .collection('users')
+            .doc(userCredential.user!.uid)
+            .update(firestoreUpdateData)
+            .catchError((e) {
+          debugPrint('Error updating Firestore for anonymous user: $e');
+        });
+        
+        // Update secondary Firestore database    
+        try {
+          await _userDatabaseService.updateUserData(
+              userCredential.user!.uid, firestoreUpdateData);
+        } catch (e) {
+          debugPrint('Error updating secondary database for anonymous user: $e');
+        }
+            
+        // Update Realtime Database
+        try {
+          await _realtimeDatabaseService.updateUserData(
+              userCredential.user!.uid, realtimeUpdateData);
+        } catch (e) {
+          debugPrint('Error updating Realtime Database for anonymous user: $e');
+        }
+      }
+      
+      return userCredential;
+    } on FirebaseAuthException catch (e) {
+      debugPrint('Error signing in anonymously: ${e.message}');
+      throw FirebaseAuthException(
+        code: e.code,
+        message: _getReadableAuthError(e.code),
+      );
+    } catch (e) {
+      debugPrint('Unexpected error during anonymous sign-in: $e');
+      throw Exception('Failed to sign in anonymously: $e');
+    }
+  }
 
   // Sign in with email and password
   Future<UserCredential> signInWithEmailAndPassword(
@@ -118,6 +200,21 @@ class AuthService {
         googleUser = await _googleSignIn.signIn();
       } catch (e) {
         debugPrint('Error during Google sign-in: $e');
+        
+        // Handle common Android errors
+        if (e.toString().contains('PlatformException(sign_in_failed') || 
+            e.toString().contains('com.google.android.gms.common.api')) {
+          // This is likely a configuration issue with SHA keys or Google Play Services
+          print('Google Sign-In failed due to platform configuration. Checking configuration...');
+          
+          // Check if running on web - different error handling path
+          if (kIsWeb) {
+            throw Exception('Google sign-in configuration error. Please check Firebase console web app settings.');
+          } else {
+            throw Exception('Google sign-in failed. Please verify your SHA-1 key is registered in Firebase console and Google Play Services is up to date.');
+          }
+        }
+        
         if (e.toString().contains('Future already completed')) {
           // If this error occurs, it likely means the sign-in process was already completed
           // or cancelled. We'll just return null to indicate no sign-in occurred.
@@ -202,7 +299,7 @@ class AuthService {
   }
 
   // Save user data to Firestore
-  Future<void> _saveUserDataToFirestore(User user, {String? fullName}) async {
+  Future<void> _saveUserDataToFirestore(User user, {String? fullName, bool isAnonymous = false}) async {
     await _firestore
         .collection('users')
         .doc(user.uid)
@@ -214,9 +311,12 @@ class AuthService {
       'phoneNumber': user.phoneNumber,
       'createdAt': FieldValue.serverTimestamp(),
       'lastLogin': FieldValue.serverTimestamp(),
-      'authProvider': user.providerData.isNotEmpty 
-          ? user.providerData[0].providerId 
-          : 'firebase',
+      'isAnonymous': isAnonymous,
+      'authProvider': isAnonymous 
+          ? 'anonymous' 
+          : (user.providerData.isNotEmpty 
+              ? user.providerData[0].providerId 
+              : 'firebase'),
     }, SetOptions(merge: true));
   }
 

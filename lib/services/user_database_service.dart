@@ -16,7 +16,7 @@ class UserDatabaseService {
   }
   
   // Save user data to Firestore
-  Future<void> saveUserData(User user, {String? fullName}) async {
+  Future<void> saveUserData(User user, {String? fullName, bool isAnonymous = false}) async {
     await _usersCollection.doc(user.uid).set({
       'userId': user.uid,
       'displayName': fullName ?? user.displayName ?? 'User',
@@ -25,9 +25,12 @@ class UserDatabaseService {
       'phoneNumber': user.phoneNumber,
       'createdAt': FieldValue.serverTimestamp(),
       'lastLogin': FieldValue.serverTimestamp(),
-      'authProvider': user.providerData.isNotEmpty 
-          ? user.providerData[0].providerId 
-          : 'firebase',
+      'isAnonymous': isAnonymous,
+      'authProvider': isAnonymous 
+          ? 'anonymous' 
+          : (user.providerData.isNotEmpty 
+              ? user.providerData[0].providerId 
+              : 'firebase'),
       // Additional fields that could be useful
       'isEmailVerified': user.emailVerified,
       'userSettings': {
@@ -57,10 +60,41 @@ class UserDatabaseService {
   
   // Update user settings
   Future<void> updateUserSettings(String userId, Map<String, dynamic> settingsData) async {
-    await _usersCollection.doc(userId).update({
-      'userSettings': settingsData,
-      'lastUpdated': FieldValue.serverTimestamp(),
-    });
+    try {
+      // First get the current settings
+      final docSnapshot = await _usersCollection.doc(userId).get();
+      
+      if (docSnapshot.exists) {
+        final userData = docSnapshot.data() as Map<String, dynamic>;
+        if (userData.containsKey('userSettings') && userData['userSettings'] is Map) {
+          // Merge the new settings with existing settings
+          final Map<String, dynamic> currentSettings = Map<String, dynamic>.from(
+              userData['userSettings'] as Map<String, dynamic>);
+          
+          // Update the settings
+          currentSettings.addAll(settingsData);
+          
+          // Update the document with merged settings
+          await _usersCollection.doc(userId).update({
+            'userSettings': currentSettings,
+            'lastUpdated': FieldValue.serverTimestamp(),
+          });
+          
+          print('User settings updated with merged data in Firestore');
+          return;
+        }
+      }
+      
+      // If we can't merge, just update directly
+      await _usersCollection.doc(userId).update({
+        'userSettings': settingsData,
+        'lastUpdated': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      print('Error updating user settings in Firestore: $e');
+      // Rethrow to allow the caller to handle the error
+      rethrow;
+    }
   }
   
   // Delete user data

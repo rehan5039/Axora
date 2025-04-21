@@ -94,14 +94,44 @@ class _SignUpScreenState extends State<SignUpScreen> {
       }
     } catch (e) {
       setState(() {
-        _errorMessage = e.toString();
         _isLoading = false;
+        
+        // Provide more user-friendly error messages
+        if (e.toString().contains('SHA-1 key')) {
+          _errorMessage = 'Google Sign-In is not properly configured. Please contact support.';
+        } else if (e.toString().contains('network')) {
+          _errorMessage = 'Network error. Please check your internet connection and try again.';
+        } else if (e.toString().contains('Google Play Services')) {
+          _errorMessage = 'Google Play Services issue. Please make sure Google Play Services is updated on your device.';
+        } else {
+          // If not a recognized error, show the original error
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
+        }
+        
+        // Log the original error for debugging
+        print('Google Sign-Up Error: $e');
       });
     }
   }
 
-  void _skipLogin() {
-    Navigator.of(context).pushReplacementNamed('/home');
+  Future<void> _skipLogin() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = '';
+    });
+    
+    try {
+      final userCredential = await _authService.signInAnonymously();
+      
+      if (userCredential != null && mounted) {
+        Navigator.of(context).pushReplacementNamed('/home');
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Failed to sign in anonymously: ${e.toString()}';
+        _isLoading = false;
+      });
+    }
   }
 
   @override

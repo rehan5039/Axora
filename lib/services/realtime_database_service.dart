@@ -21,7 +21,7 @@ class RealtimeDatabaseService {
   DatabaseReference get _usersRef => _database.ref().child('users');
   
   // Save user data to Realtime Database
-  Future<void> saveUserData(User user, {String? fullName}) async {
+  Future<void> saveUserData(User user, {String? fullName, bool isAnonymous = false}) async {
     try {
       await _usersRef.child(user.uid).set({
         'userId': user.uid,
@@ -31,9 +31,12 @@ class RealtimeDatabaseService {
         'phoneNumber': user.phoneNumber,
         'createdAt': DateTime.now().millisecondsSinceEpoch,
         'lastLogin': DateTime.now().millisecondsSinceEpoch,
-        'authProvider': user.providerData.isNotEmpty 
-            ? user.providerData[0].providerId 
-            : 'firebase',
+        'isAnonymous': isAnonymous,
+        'authProvider': isAnonymous 
+            ? 'anonymous' 
+            : (user.providerData.isNotEmpty 
+                ? user.providerData[0].providerId 
+                : 'firebase'),
         'isEmailVerified': user.emailVerified,
         'userSettings': {
           'notifications': true,
@@ -104,10 +107,34 @@ class RealtimeDatabaseService {
   // Update user settings
   Future<void> updateUserSettings(String userId, Map<String, dynamic> settingsData) async {
     try {
+      // First get the current settings
+      final snapshot = await _usersRef.child(userId).child('userSettings').get();
+      
+      if (snapshot.exists) {
+        // Merge the new settings with existing settings
+        final Map<String, dynamic> currentSettings = 
+            Map<String, dynamic>.from(snapshot.value as Map<dynamic, dynamic>);
+        
+        // Update the settings
+        currentSettings.addAll(settingsData);
+        
+        // Update with merged settings
+        await _usersRef.child(userId).child('userSettings').update(currentSettings);
+        await _usersRef.child(userId).update({
+          'lastUpdated': DateTime.now().millisecondsSinceEpoch,
+        });
+        
+        print('User settings updated with merged data in Realtime Database');
+        return;
+      }
+      
+      // If no existing settings, just update directly
       await _usersRef.child(userId).child('userSettings').update(settingsData);
       await _usersRef.child(userId).update({
         'lastUpdated': DateTime.now().millisecondsSinceEpoch,
       });
+      
+      print('User settings updated in Realtime Database');
     } catch (e) {
       print('Error updating user settings in Realtime Database: $e');
       // Don't rethrow
