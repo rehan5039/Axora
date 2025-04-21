@@ -236,9 +236,13 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Authors
 
-[Saad] - [saadkalburge95@gmail.com]
-[Rehan] - [gg.rehan1234@gmail.com]
+- **Saad**  
+  📧 [saadkalburge95@gmail.com](mailto:saadkalburge95@gmail.com)
+
+- **Rehan**  
+  📧 [gg.rehan1234@gmail.com](mailto:gg.rehan1234@gmail.com)
 
 ---
+
 
 © 2025 Axora Application. All rights reserved.
