@@ -11,14 +11,19 @@ import 'package:axora/providers/theme_provider.dart';
 import 'package:axora/widgets/theme_showcase.dart';
 import 'package:axora/screens/meditation_journey_screen.dart';
 import 'package:axora/screens/admin_meditation_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   try {
+    // Initialize Firebase
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+    
+    // Set persistence to LOCAL (keeps user logged in across refreshes)
+    await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
     
     // Configure Firebase Realtime Database URL explicitly
     try {

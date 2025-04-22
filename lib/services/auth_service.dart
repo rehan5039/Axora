@@ -14,6 +14,22 @@ class AuthService {
     clientId: kIsWeb ? '906770746320-aoh8gg8krlj3el1smo6rtmrcss76uvu7.apps.googleusercontent.com' : null,
   );
 
+  // Constructor to initialize persistence
+  AuthService() {
+    _initializePersistence();
+  }
+
+  // Initialize persistence
+  Future<void> _initializePersistence() async {
+    try {
+      // Set persistence to LOCAL for web and mobile
+      await _auth.setPersistence(Persistence.LOCAL);
+      debugPrint('Firebase Auth persistence set to LOCAL');
+    } catch (e) {
+      debugPrint('Error setting persistence: $e');
+    }
+  }
+
   // Get current user
   User? get currentUser => _auth.currentUser;
 
