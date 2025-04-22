@@ -67,4 +67,32 @@ class UserProgress {
     // Check if 24 hours (86400 seconds) have passed
     return diff >= 86400;
   }
+  
+  // Get time remaining in seconds until next day unlocks
+  int getSecondsUntilNextDayUnlocks() {
+    if (lastCompletedDay == 0 || canUnlockNextDay()) return 0;
+    
+    final now = Timestamp.now();
+    final elapsedSeconds = now.seconds - lastCompletedAt.seconds;
+    final remainingSeconds = 86400 - elapsedSeconds;
+    
+    return remainingSeconds > 0 ? remainingSeconds : 0;
+  }
+  
+  // Get formatted string of time remaining until next day unlocks
+  String getFormattedTimeRemaining() {
+    final totalSeconds = getSecondsUntilNextDayUnlocks();
+    if (totalSeconds <= 0) return "Ready to unlock";
+    
+    final hours = totalSeconds ~/ 3600;
+    final minutes = (totalSeconds % 3600) ~/ 60;
+    final seconds = totalSeconds % 60;
+    
+    return '${hours}h ${minutes.toString().padLeft(2, '0')}m ${seconds.toString().padLeft(2, '0')}s';
+  }
+  
+  // Check if a specific day is completed
+  bool isDayCompleted(int day) {
+    return completedDays.contains(day);
+  }
 } 

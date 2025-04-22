@@ -251,14 +251,23 @@ class MeditationService {
     if (_userId == null) return false;
     
     try {
+      print('Starting completeDay process for day $day');
+      
       // Get current progress
       final progress = await getUserProgress();
-      if (progress == null) return false;
+      if (progress == null) {
+        print('ERROR: User progress is null');
+        return false;
+      }
       
       // Check if this day is already completed
       if (progress.completedDays.contains(day)) {
+        print('Day $day is already completed, nothing to do');
         return true; // Already completed
       }
+      
+      print('Current progress - currentDay: ${progress.currentDay}, lastCompletedDay: ${progress.lastCompletedDay}');
+      print('Completed days: ${progress.completedDays}');
       
       // Update progress
       final updatedCompletedDays = List<int>.from(progress.completedDays)..add(day);
@@ -267,8 +276,13 @@ class MeditationService {
       // If completing current day, increment currentDay if 24 hours have passed
       if (day == progress.currentDay && progress.canUnlockNextDay()) {
         nextDay = day + 1;
+        print('Unlocking next day: $nextDay');
+      } else {
+        print('Next day unlocking conditions not met or completing a previous day');
       }
       
+      print('Updating progress in Firestore...');
+      // Update in Firestore
       await _progressCollection.doc(_userId).update({
         'lastCompletedDay': day,
         'lastCompletedAt': FieldValue.serverTimestamp(),
@@ -276,12 +290,23 @@ class MeditationService {
         'currentDay': nextDay,
       });
       
-      // Add sticker for completed day
-      await addStickerForDay(day);
+      print('Progress updated successfully');
+      
+      // Add sticker for completed day - this needs to succeed
+      final stickerResult = await addStickerForDay(day);
+      print('Sticker added for day $day: $stickerResult');
+      
+      // Double check that sticker was awarded
+      final stickers = await getUserStickers();
+      if (stickers != null) {
+        print('Sticker verification - User has ${stickers.stickers} stickers total');
+        print('Has sticker for day $day: ${stickers.hasStickerForDay(day)}');
+      }
       
       return true;
     } catch (e) {
       print('Error completing day: $e');
+      print('Stack trace: ${StackTrace.current}');
       return false;
     }
   }
@@ -315,29 +340,127 @@ class MeditationService {
   
   // Add sticker for completed day
   Future<bool> addStickerForDay(int day) async {
-    if (_userId == null) return false;
+    if (_userId == null) {
+      print('Cannot add sticker: userId is null');
+      return false;
+    }
     
     try {
+      print('Adding sticker for day $day - START');
+      
       final stickers = await getUserStickers();
-      if (stickers == null) return false;
+      if (stickers == null) {
+        print('Cannot add sticker: stickers is null');
+        return false;
+      }
       
       // Check if sticker already awarded for this day
       if (stickers.hasStickerForDay(day)) {
+        print('Sticker already awarded for day $day');
         return true; // Already has sticker
       }
+      
+      print('Adding new sticker for day $day');
       
       // Update stickers
       final updatedStickers = stickers.addStickerForDay(day);
       
-      await _stickersCollection.doc(_userId).update({
+      // Use set with merge to ensure all fields are present
+      await _stickersCollection.doc(_userId).set({
+        'userId': _userId,
+        'email': _userEmail ?? '',
         'stickers': updatedStickers.stickers,
         'earnedFromDays': updatedStickers.earnedFromDays,
-      });
+        'lastUpdated': FieldValue.serverTimestamp(),
+        'stickerAchievements': updatedStickers.stickerAchievements,
+      }, SetOptions(merge: true));
+      
+      print('Sticker added successfully for day $day. Total stickers: ${updatedStickers.stickers}');
+      
+      // Add achievement if needed (example: first sticker, 5 stickers, etc)
+      if (updatedStickers.stickers == 1) {
+        await _addStickerAchievement('first_sticker', 'First Sticker Earned!');
+      } else if (updatedStickers.stickers == 5) {
+        await _addStickerAchievement('five_stickers', 'Five Stickers Collection!');
+      } else if (updatedStickers.stickers == 10) {
+        await _addStickerAchievement('ten_stickers', 'Ten Stickers Master!');
+      }
       
       return true;
     } catch (e) {
       print('Error adding sticker: $e');
+      print('Stack trace: ${StackTrace.current}');
       return false;
+    }
+  }
+  
+  // Add sticker achievement
+  Future<bool> _addStickerAchievement(String achievementId, String title) async {
+    if (_userId == null) return false;
+    
+    try {
+      print('Adding sticker achievement: $achievementId - $title');
+      
+      final stickers = await getUserStickers();
+      if (stickers == null) return false;
+      
+      // Check if achievement already awarded
+      final achievements = stickers.stickerAchievements;
+      if (achievements.containsKey(achievementId)) {
+        return true; // Already has this achievement
+      }
+      
+      // Create updated achievements map
+      final updatedAchievements = Map<String, dynamic>.from(achievements);
+      updatedAchievements[achievementId] = {
+        'title': title,
+        'earnedAt': FieldValue.serverTimestamp(),
+      };
+      
+      // Update stickers document
+      await _stickersCollection.doc(_userId).update({
+        'stickerAchievements': updatedAchievements,
+        'lastUpdated': FieldValue.serverTimestamp(),
+      });
+      
+      print('Achievement added successfully: $achievementId');
+      return true;
+    } catch (e) {
+      print('Error adding achievement: $e');
+      return false;
+    }
+  }
+  
+  // Get all user achievements
+  Future<List<Map<String, dynamic>>> getUserAchievements() async {
+    if (_userId == null) return [];
+    
+    try {
+      final stickers = await getUserStickers();
+      if (stickers == null) return [];
+      
+      final achievements = <Map<String, dynamic>>[];
+      stickers.stickerAchievements.forEach((key, value) {
+        if (value is Map) {
+          achievements.add({
+            'id': key,
+            'title': value['title'] ?? 'Unknown Achievement',
+            'earnedAt': value['earnedAt'] ?? Timestamp.now(),
+          });
+        }
+      });
+      
+      // Sort by earned date (newest first)
+      achievements.sort((a, b) {
+        final aTimestamp = a['earnedAt'] as Timestamp;
+        final bTimestamp = b['earnedAt'] as Timestamp;
+        return bTimestamp.compareTo(aTimestamp);
+      });
+      
+      return achievements;
+    } catch (e) {
+      print('Error getting user achievements: $e');
+      return [];
     }
   }
   
@@ -414,24 +537,57 @@ class MeditationService {
     if (_userId == null) return false;
     
     try {
+      print('Checking if both article and audio are completed for content ID: $contentId');
+      
       final content = await _contentCollection.doc(contentId).get();
-      if (!content.exists) return false;
+      if (!content.exists) {
+        print('ERROR: Content document $contentId does not exist');
+        return false;
+      }
       
       final data = content.data() as Map<String, dynamic>;
       final day = data['day'] as int;
       
+      print('Found content for day: $day');
+      
       // Check if both article and audio are completed
-      final articleCompleted = await _firestore.collection('user_profiles').doc(_userId).collection('completed_articles').doc(contentId).get();
-      final audioCompleted = await _firestore.collection('user_profiles').doc(_userId).collection('completed_audios').doc(contentId).get();
+      final articleDocRef = _firestore.collection('user_profiles').doc(_userId).collection('completed_articles').doc(contentId);
+      final audioDocRef = _firestore.collection('user_profiles').doc(_userId).collection('completed_audios').doc(contentId);
+      
+      final articleCompleted = await articleDocRef.get();
+      final audioCompleted = await audioDocRef.get();
+      
+      print('Article completed: ${articleCompleted.exists}');
+      print('Audio completed: ${audioCompleted.exists}');
       
       if (articleCompleted.exists && audioCompleted.exists) {
+        print('Both article and audio are completed for day $day. Completing day...');
+        
+        // Verify if day is already completed before proceeding
+        final progress = await getUserProgress();
+        if (progress?.completedDays.contains(day) ?? false) {
+          print('Day $day is already marked as completed in user progress');
+          return true;
+        }
+        
         // Both are completed, so complete the day
-        return await completeDay(day);
+        final result = await completeDay(day);
+        print('Day $day complete result: $result');
+        return result;
+      } else {
+        print('Not both audio and article completed yet');
+        if (!articleCompleted.exists) {
+          print('Article not yet completed');
+        }
+        if (!audioCompleted.exists) {
+          print('Audio not yet completed');
+        }
       }
       
       return false; // Not both completed yet
     } catch (e) {
       print('Error checking completion: $e');
+      print('Stack trace: ${StackTrace.current}');
       return false;
     }
   }

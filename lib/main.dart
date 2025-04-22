@@ -56,7 +56,26 @@ class MyApp extends StatelessWidget {
       title: 'Axora',
       debugShowCheckedModeBanner: false,
       theme: themeProvider.themeData,
-      initialRoute: '/login',
+      home: StreamBuilder<User?>(
+        stream: FirebaseAuth.instance.authStateChanges(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Scaffold(
+              body: Center(
+                child: CircularProgressIndicator(),
+              ),
+            );
+          }
+          
+          if (snapshot.hasData && snapshot.data != null) {
+            // User is logged in
+            return const HomeScreen();
+          }
+          
+          // User is not logged in
+          return const LoginScreen();
+        },
+      ),
       routes: {
         '/login': (context) => const LoginScreen(),
         '/signup': (context) => const SignUpScreen(),

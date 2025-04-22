@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:axora/models/meditation_content.dart';
 import 'package:axora/models/user_progress.dart';
@@ -6,6 +7,7 @@ import 'package:axora/services/meditation_service.dart';
 import 'package:axora/screens/meditation_day_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:axora/providers/theme_provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class MeditationJourneyScreen extends StatefulWidget {
   const MeditationJourneyScreen({super.key});
@@ -20,11 +22,19 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> {
   List<MeditationContent> _meditationContents = [];
   UserProgress? _userProgress;
   UserStickers? _userStickers;
+  Timer? _unlockTimer;
+  Duration _timeRemaining = Duration.zero;
 
   @override
   void initState() {
     super.initState();
     _loadData();
+  }
+  
+  @override
+  void dispose() {
+    _unlockTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -40,7 +50,10 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> {
       final stickers = await _meditationService.getUserStickers();
       
       print('User progress loaded: ${progress?.currentDay ?? 'null'}');
+      print('Last completed day: ${progress?.lastCompletedDay ?? 'null'}');
+      print('Completed days: ${progress?.completedDays?.join(', ') ?? 'none'}');
       print('User stickers loaded: ${stickers?.stickers ?? 'null'}');
+      print('Stickers earned from days: ${stickers?.earnedFromDays?.join(', ') ?? 'none'}');
       
       // Load meditation content
       var contents = await _meditationService.getAllMeditationContent();
@@ -69,6 +82,18 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> {
         _userStickers = stickers;
         _isLoading = false;
       });
+      
+      // Setup timer for next day unlock if needed
+      _updateUnlockTimer();
+      
+      // Debug the unlock timer status
+      print('Unlock timer status:');
+      if (_userProgress != null) {
+        print('  Can unlock next day: ${_userProgress!.canUnlockNextDay()}');
+        print('  Seconds until next unlock: ${_userProgress!.getSecondsUntilNextDayUnlocks()}');
+        print('  Time remaining: ${_userProgress!.getFormattedTimeRemaining()}');
+        print('  Current timer value: ${_timeRemaining.inSeconds} seconds');
+      }
     } catch (e) {
       print('Error loading meditation journey data: $e');
       print('Stack trace: ${StackTrace.current}');
@@ -94,6 +119,56 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> {
     }
   }
   
+  void _updateUnlockTimer() {
+    _unlockTimer?.cancel();
+    
+    // Only set up timer if we have user progress
+    if (_userProgress == null) {
+      print('Cannot update unlock timer - user progress is null');
+      return;
+    }
+    
+    // Calculate time until next day unlocks
+    if (_userProgress!.lastCompletedDay > 0 && !_userProgress!.canUnlockNextDay()) {
+      final now = Timestamp.now();
+      final lastCompletedAt = _userProgress!.lastCompletedAt;
+      final secondsSinceLastCompleted = now.seconds - lastCompletedAt.seconds;
+      
+      // 24 hours (86400 seconds) from last completion
+      final remainingSeconds = 86400 - secondsSinceLastCompleted;
+      
+      if (remainingSeconds > 0) {
+        print('Setting unlock timer for ${remainingSeconds} seconds');
+        _timeRemaining = Duration(seconds: remainingSeconds.toInt());
+        
+        // Update timer every second
+        _unlockTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+          if (_timeRemaining.inSeconds <= 0) {
+            print('Timer completed - cancelling timer and reloading data');
+            timer.cancel();
+            _loadData(); // Refresh data as new day is available
+          } else {
+            setState(() {
+              _timeRemaining = Duration(seconds: _timeRemaining.inSeconds - 1);
+            });
+          }
+        });
+      } else {
+        print('No time remaining for next unlock - can unlock now');
+      }
+    } else {
+      print('No unlock timer needed - either no completed days or can already unlock next day');
+    }
+  }
+  
+  String get _formattedTimeRemaining {
+    final hours = _timeRemaining.inHours;
+    final minutes = _timeRemaining.inMinutes.remainder(60);
+    final seconds = _timeRemaining.inSeconds.remainder(60);
+    
+    return '$hours:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+
   // Create fallback content for testing/debugging
   Future<void> _createFallbackContent() async {
     try {
@@ -155,7 +230,12 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> {
     );
     
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Meditation Journey'),
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
     }
 
     return RefreshIndicator(
@@ -187,7 +267,14 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> {
                     style: textStyle,
                   ),
                   const SizedBox(height: 16),
-                  _buildStickerCounter(),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _buildStickerCounter(),
+                      if (_timeRemaining.inSeconds > 0)
+                        _buildNextDayTimer(),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -240,28 +327,127 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> {
   Widget _buildStickerCounter() {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final isDarkMode = themeProvider.isDarkMode;
+    final stickersCount = _userStickers?.stickers ?? 0;
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: isDarkMode ? Colors.grey[800] : Colors.grey[200],
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 5,
+            offset: const Offset(0, 2),
+          ),
+        ],
+        border: Border.all(
+          color: Colors.amber,
+          width: stickersCount > 0 ? 2 : 0,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              const Icon(
+                Icons.star,
+                color: Colors.amber,
+                size: 30,
+              ),
+              if (stickersCount > 0)
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    width: 16,
+                    height: 16,
+                    decoration: const BoxDecoration(
+                      color: Colors.green,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Icon(
+                        Icons.check,
+                        color: Colors.white,
+                        size: 12,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Stickers',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  color: isDarkMode ? Colors.white70 : Colors.black54,
+                ),
+              ),
+              Text(
+                stickersCount.toString(),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: stickersCount > 0 ? Colors.amber : (isDarkMode ? Colors.white : Colors.black87),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNextDayTimer() {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDarkMode = themeProvider.isDarkMode;
     
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: isDarkMode ? Colors.grey[800] : Colors.grey[200],
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.orange,
+          width: 2,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           const Icon(
-            Icons.star,
-            color: Colors.amber,
-            size: 28,
+            Icons.timer,
+            color: Colors.orange,
+            size: 20,
           ),
           const SizedBox(width: 8),
-          Text(
-            'Stickers: ${_userStickers?.stickers ?? 0}',
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Next Day Unlocks In:',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                _formattedTimeRemaining,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.orange,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -274,6 +460,7 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> {
     final currentDay = _userProgress?.currentDay ?? 1;
     final isCompleted = _userStickers?.hasStickerForDay(content.day) ?? false;
     final isUnlocked = content.day <= currentDay;
+    final isCurrentDay = content.day == currentDay;
     
     final cardColor = isCompleted
         ? (isDarkMode ? Colors.green[900] : Colors.green[100])
@@ -284,67 +471,160 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> {
     
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
-      elevation: 2,
+      elevation: isCurrentDay ? 4 : 2,
       color: cardColor,
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(16),
-        onTap: isUnlocked
-            ? () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => MeditationDayScreen(
-                      content: content,
-                      onComplete: _loadData,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: isCurrentDay 
+            ? BorderSide(color: isDarkMode ? Colors.deepPurple : Colors.blue, width: 2)
+            : BorderSide.none,
+      ),
+      child: Stack(
+        children: [
+          ListTile(
+            contentPadding: const EdgeInsets.all(16),
+            onTap: isUnlocked
+                ? () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => MeditationDayScreen(
+                          content: content,
+                          onComplete: _loadData,
+                        ),
+                      ),
+                    );
+                  }
+                : null,
+            leading: Stack(
+              children: [
+                CircleAvatar(
+                  backgroundColor: isUnlocked
+                      ? (isDarkMode ? Colors.blue[700] : Colors.blue)
+                      : Colors.grey,
+                  child: isCompleted
+                      ? const Icon(Icons.star, color: Colors.amber)
+                      : Text('${content.day}'),
+                ),
+                if (isCompleted)
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: Colors.green,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: isDarkMode ? Colors.grey[800]! : Colors.white,
+                          width: 1.5,
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.check,
+                        color: Colors.white,
+                        size: 10,
+                      ),
                     ),
                   ),
-                );
-              }
-            : null,
-        leading: CircleAvatar(
-          backgroundColor: isUnlocked
-              ? (isDarkMode ? Colors.blue[700] : Colors.blue)
-              : Colors.grey,
-          child: isCompleted
-              ? const Icon(Icons.star, color: Colors.amber)
-              : Text('${content.day}'),
-        ),
-        title: Text(
-          content.title,
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
-            color: isUnlocked
-                ? (isDarkMode ? Colors.white : Colors.black87)
-                : Colors.grey,
+              ],
+            ),
+            title: Text(
+              content.title,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+                color: isUnlocked
+                    ? (isDarkMode ? Colors.white : Colors.black87)
+                    : Colors.grey,
+              ),
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.article,
+                      size: 14,
+                      color: isUnlocked
+                          ? (isDarkMode ? Colors.white70 : Colors.black54)
+                          : Colors.grey,
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        'Article: ${article.title}',
+                        style: TextStyle(
+                          color: isUnlocked
+                              ? (isDarkMode ? Colors.white70 : Colors.black54)
+                              : Colors.grey,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.headphones,
+                      size: 14,
+                      color: isUnlocked
+                          ? (isDarkMode ? Colors.white70 : Colors.black54)
+                          : Colors.grey,
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        'Audio: ${audio.title}',
+                        style: TextStyle(
+                          color: isUnlocked
+                              ? (isDarkMode ? Colors.white70 : Colors.black54)
+                              : Colors.grey,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            trailing: isUnlocked
+                ? Icon(
+                    isCompleted ? Icons.check_circle : Icons.arrow_forward_ios,
+                    color: isCompleted ? Colors.green : null,
+                  )
+                : const Icon(Icons.lock, color: Colors.grey),
           ),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 8),
-            Text(
-              'Article: ${article.title}',
-              style: TextStyle(
-                color: isUnlocked
-                    ? (isDarkMode ? Colors.white70 : Colors.black54)
-                    : Colors.grey,
+          if (isCurrentDay)
+            Positioned(
+              top: 0,
+              right: 10,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: isDarkMode ? Colors.deepPurple : Colors.blue,
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(8),
+                    bottomRight: Radius.circular(8),
+                  ),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: const Text(
+                  'TODAY',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              'Audio: ${audio.title}',
-              style: TextStyle(
-                color: isUnlocked
-                    ? (isDarkMode ? Colors.white70 : Colors.black54)
-                    : Colors.grey,
-              ),
-            ),
-          ],
-        ),
-        trailing: isUnlocked
-            ? const Icon(Icons.arrow_forward_ios)
-            : const Icon(Icons.lock, color: Colors.grey),
+        ],
       ),
     );
   }

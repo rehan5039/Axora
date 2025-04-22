@@ -32,6 +32,7 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
   bool _isAudioCompleted = false;
   bool _isDayCompleted = false;
   bool _isCheckingCompletion = false;
+  bool _isAutoNavigating = false;
   
   // Get current user ID
   String? get _userId => _auth.currentUser?.uid;
@@ -86,6 +87,10 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
       
       try {
         print('Checking completion for content ID: ${widget.content.id}');
+        
+        // Force a delay to ensure Firebase operations complete
+        await Future.delayed(const Duration(milliseconds: 500));
+        
         final completed = await _meditationService.checkAndCompleteDayIfBothCompleted(widget.content.id);
         
         print('Completion check result: $completed');
@@ -95,6 +100,13 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
         });
         
         if (completed) {
+          print('Day ${widget.content.day} marked as completed! Sticker should be awarded.');
+          
+          // Verify if sticker was awarded
+          final stickers = await _meditationService.getUserStickers();
+          print('User now has ${stickers?.stickers ?? 0} stickers');
+          print('Sticker for day ${widget.content.day} exists: ${stickers?.hasStickerForDay(widget.content.day) ?? false}');
+          
           _showCompletionDialog();
           widget.onComplete(); // Notify parent to refresh
         }
@@ -113,25 +125,6 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
     }
   }
   
-  Future<void> _markAudioAsCompleted() async {
-    if (_isAudioCompleted) return;
-    
-    setState(() {
-      _isAudioCompleted = true;
-    });
-    
-    try {
-      print('Marking audio as completed for content ID: ${widget.content.id}');
-      await _meditationService.markAudioAsCompleted(widget.content.id);
-      await _checkAndCompleteDayIfBothCompleted();
-    } catch (e) {
-      print('Error marking audio as completed: $e');
-      setState(() {
-        _isAudioCompleted = false;
-      });
-    }
-  }
-  
   Future<void> _markArticleAsCompleted() async {
     if (_isArticleCompleted) return;
     
@@ -142,7 +135,27 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
     try {
       print('Marking article as completed for content ID: ${widget.content.id}');
       await _meditationService.markArticleAsCompleted(widget.content.id);
-      await _checkAndCompleteDayIfBothCompleted();
+      
+      // If audio is also completed, check and complete the day
+      if (_isAudioCompleted) {
+        print('Both article and audio completed - checking day completion');
+        await _checkAndCompleteDayIfBothCompleted();
+        
+        // Return to journey screen automatically
+        if (mounted) {
+          Navigator.of(context).pop();
+        }
+      } else {
+        // Show a snackbar to prompt the user to listen to the audio
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Article marked as read! Listen to the audio to complete this day.'),
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+      }
     } catch (e) {
       print('Error marking article as completed: $e');
       setState(() {
@@ -151,9 +164,62 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
     }
   }
   
+  Future<void> _markAudioAsCompleted() async {
+    if (_isAudioCompleted) return;
+    
+    setState(() {
+      _isAudioCompleted = true;
+    });
+    
+    try {
+      print('Marking audio as completed for content ID: ${widget.content.id}');
+      await _meditationService.markAudioAsCompleted(widget.content.id);
+      
+      // Auto-switch to article tab after audio completion
+      if (!_isArticleCompleted && !_isAutoNavigating) {
+        setState(() {
+          _isAutoNavigating = true;
+        });
+        
+        // Wait a moment for the completion UI to be visible before switching tabs
+        Future.delayed(const Duration(seconds: 1), () {
+          if (mounted) {
+            _tabController.animateTo(1); // Switch to article tab (index 1)
+            setState(() {
+              _isAutoNavigating = false;
+            });
+            
+            // Show a snackbar to prompt user to read the article
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Audio completed! Now read the article to finish this day.'),
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+        });
+      } else if (_isArticleCompleted) {
+        // If article is already completed, check and complete the day
+        print('Both audio and article completed - checking day completion');
+        await _checkAndCompleteDayIfBothCompleted();
+        
+        // Return to journey screen automatically
+        if (mounted) {
+          Navigator.of(context).pop();
+        }
+      }
+    } catch (e) {
+      print('Error marking audio as completed: $e');
+      setState(() {
+        _isAudioCompleted = false;
+      });
+    }
+  }
+  
   void _showCompletionDialog() {
     showDialog(
       context: context,
+      barrierDismissible: false, // User must tap button to close dialog
       builder: (context) => AlertDialog(
         title: const Text('Congratulations!'),
         content: Column(
@@ -182,7 +248,9 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
         actions: [
           TextButton(
             onPressed: () {
-              Navigator.of(context).pop();
+              Navigator.of(context).pop(); // Close dialog
+              // Return to journey screen automatically
+              Navigator.of(context).pop(); // Return to journey screen
             },
             child: const Text('OK'),
           ),

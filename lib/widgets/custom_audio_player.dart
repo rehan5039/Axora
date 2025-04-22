@@ -31,6 +31,7 @@ class _CustomAudioPlayerState extends State<CustomAudioPlayer> with WidgetsBindi
   late AudioPlayer _audioPlayer;
   bool _isLoading = true;
   bool _hasError = false;
+  bool _isCompleted = false;
   String _errorMessage = '';
 
   Stream<PositionData> get _positionDataStream =>
@@ -72,6 +73,9 @@ class _CustomAudioPlayerState extends State<CustomAudioPlayer> with WidgetsBindi
       // Set up completion callback
       _audioPlayer.processingStateStream.listen((state) {
         if (state == ProcessingState.completed) {
+          setState(() {
+            _isCompleted = true;
+          });
           widget.onComplete?.call();
         }
       });
@@ -159,6 +163,29 @@ class _CustomAudioPlayerState extends State<CustomAudioPlayer> with WidgetsBindi
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (_isCompleted)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.check_circle,
+                    color: Colors.green,
+                    size: 20,
+                  ),
+                  SizedBox(width: 8),
+                  Text(
+                    'Completed',
+                    style: TextStyle(
+                      color: Colors.green,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
           if (_isLoading)
             const Padding(
               padding: EdgeInsets.all(32),
