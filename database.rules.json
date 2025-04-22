@@ -1,0 +1,6 @@
+{
+  "rules": {
+    ".read": true,  // WARNING: For development only
+    ".write": true  // WARNING: For development only
+  }
+} 

@@ -38,11 +38,21 @@ dependencies:
   firebase_database: ^10.4.9
   google_sign_in: ^6.2.1
 
+  # Audio
+  just_audio: ^0.9.36
+  just_audio_web: ^0.4.9
+  audio_video_progress_bar: ^2.0.1
+  rxdart: ^0.27.7
+
   # UI packages
   google_fonts: ^6.1.0
   flutter_svg: ^2.0.10+1
   loading_animation_widget: ^1.2.0+4
   email_validator: ^2.1.17
+  cached_network_image: ^3.3.1
+
+  # Media
+  audioplayers: ^5.1.0
 
   # Networking
   http: ^1.2.0

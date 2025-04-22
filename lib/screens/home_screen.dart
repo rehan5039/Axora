@@ -6,6 +6,9 @@ import 'package:axora/providers/theme_provider.dart';
 import 'package:axora/widgets/axora_logo.dart';
 import 'package:axora/widgets/theme_toggle_button.dart';
 import 'package:axora/widgets/theme_showcase.dart';
+import 'package:axora/screens/meditation_journey_screen.dart';
+import 'package:axora/services/meditation_service.dart';
+import 'package:axora/models/user_progress.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -76,8 +79,42 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-class MeditationTab extends StatelessWidget {
+class MeditationTab extends StatefulWidget {
   const MeditationTab({super.key});
+
+  @override
+  State<MeditationTab> createState() => _MeditationTabState();
+}
+
+class _MeditationTabState extends State<MeditationTab> {
+  final _meditationService = MeditationService();
+  UserProgress? _userProgress;
+  bool _isLoading = true;
+  
+  @override
+  void initState() {
+    super.initState();
+    _loadUserProgress();
+  }
+  
+  Future<void> _loadUserProgress() async {
+    setState(() {
+      _isLoading = true;
+    });
+    
+    try {
+      final progress = await _meditationService.getUserProgress();
+      setState(() {
+        _userProgress = progress;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading user progress: $e');
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -106,6 +143,20 @@ class MeditationTab extends StatelessWidget {
             _QuickActionButton(
               label: 'Start a Quick Meditation',
               onPressed: () {},
+            ),
+            const SizedBox(height: 24),
+            _SectionTitle(title: 'Your Meditation Journey'),
+            const SizedBox(height: 16),
+            _JourneyCard(
+              currentDay: _userProgress?.currentDay ?? 1,
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const MeditationJourneyScreen(),
+                  ),
+                ).then((_) => _loadUserProgress());
+              },
             ),
             const SizedBox(height: 24),
             _SectionTitle(title: 'Today\'s Challenge'),
@@ -424,6 +475,109 @@ class _SoundItem extends StatelessWidget {
   }
 }
 
+class _JourneyCard extends StatelessWidget {
+  final int currentDay;
+  final VoidCallback onPressed;
+
+  const _JourneyCard({
+    required this.currentDay,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDarkMode = themeProvider.isDarkMode;
+    final backgroundColor = isDarkMode ? AppColors.darkCardBackground : AppColors.lightCardBackground;
+    
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: isDarkMode ? AppColors.primaryGold.withOpacity(0.2) : AppColors.primaryGreen.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.calendar_today,
+                    color: isDarkMode ? AppColors.primaryGold : AppColors.primaryGreen,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Meditation Journey',
+                        style: TextStyle(
+                          color: isDarkMode ? AppColors.darkText : AppColors.lightText,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Current day: $currentDay',
+                        style: TextStyle(
+                          color: isDarkMode ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward,
+                  color: isDarkMode ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            LinearProgressIndicator(
+              value: currentDay / 30,
+              backgroundColor: Colors.grey.withOpacity(0.2),
+              valueColor: AlwaysStoppedAnimation<Color>(
+                isDarkMode ? AppColors.primaryGold : AppColors.primaryGreen,
+              ),
+              minHeight: 8,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Continue your journey',
+              style: TextStyle(
+                color: isDarkMode ? AppColors.primaryGold : AppColors.primaryGreen,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class StatisticsTab extends StatelessWidget {
   const StatisticsTab({super.key});
 
@@ -636,6 +790,13 @@ class ProfileTab extends StatelessWidget {
                     builder: (context) => const ThemeShowcase(),
                   ),
                 );
+              },
+            ),
+            _ProfileMenuItem(
+              icon: Icons.admin_panel_settings,
+              title: 'Manage Meditation Content',
+              onTap: () {
+                Navigator.of(context).pushNamed('/admin-meditation');
               },
             ),
             _ProfileMenuItem(
