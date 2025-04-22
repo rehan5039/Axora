@@ -736,8 +736,43 @@ class _BadgeItem extends StatelessWidget {
   }
 }
 
-class ProfileTab extends StatelessWidget {
+class ProfileTab extends StatefulWidget {
   const ProfileTab({super.key});
+
+  @override
+  State<ProfileTab> createState() => _ProfileTabState();
+}
+
+class _ProfileTabState extends State<ProfileTab> {
+  final _meditationService = MeditationService();
+  bool _isAdmin = false;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAdminStatus();
+  }
+
+  Future<void> _checkAdminStatus() async {
+    try {
+      final isAdmin = await _meditationService.isAdmin();
+      if (mounted) {
+        setState(() {
+          _isAdmin = isAdmin;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error checking admin status: $e');
+      if (mounted) {
+        setState(() {
+          _isAdmin = false;
+          _isLoading = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -748,6 +783,10 @@ class ProfileTab extends StatelessWidget {
     
     final firebaseService = FirebaseService();
     final user = firebaseService.currentUser;
+
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
     return SafeArea(
       child: SingleChildScrollView(
@@ -792,13 +831,14 @@ class ProfileTab extends StatelessWidget {
                 );
               },
             ),
-            _ProfileMenuItem(
-              icon: Icons.admin_panel_settings,
-              title: 'Manage Meditation Content',
-              onTap: () {
-                Navigator.of(context).pushNamed('/admin-meditation');
-              },
-            ),
+            if (_isAdmin) // Only show admin options to admins
+              _ProfileMenuItem(
+                icon: Icons.admin_panel_settings,
+                title: 'Manage Meditation Content',
+                onTap: () {
+                  Navigator.of(context).pushNamed('/admin-meditation');
+                },
+              ),
             _ProfileMenuItem(
               icon: Icons.help_outline,
               title: 'Help & Support',

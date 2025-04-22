@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class UserProgress {
   final String userId;
+  final String email;
   final int currentDay;
   final int lastCompletedDay;
   final Timestamp lastCompletedAt;
@@ -9,6 +10,7 @@ class UserProgress {
   
   UserProgress({
     required this.userId,
+    required this.email,
     this.currentDay = 1,
     this.lastCompletedDay = 0,
     required this.lastCompletedAt,
@@ -19,6 +21,7 @@ class UserProgress {
     final data = doc.data() as Map<String, dynamic>;
     return UserProgress(
       userId: doc.id,
+      email: data['email'] ?? '',
       currentDay: data['currentDay'] ?? 1,
       lastCompletedDay: data['lastCompletedDay'] ?? 0,
       lastCompletedAt: data['lastCompletedAt'] ?? Timestamp.now(),
@@ -29,6 +32,7 @@ class UserProgress {
   Map<String, dynamic> toFirestore() {
     return {
       'userId': userId,
+      'email': email,
       'currentDay': currentDay,
       'lastCompletedDay': lastCompletedDay,
       'lastCompletedAt': lastCompletedAt,
@@ -38,6 +42,7 @@ class UserProgress {
   
   UserProgress copyWith({
     String? userId,
+    String? email,
     int? currentDay,
     int? lastCompletedDay,
     Timestamp? lastCompletedAt,
@@ -45,6 +50,7 @@ class UserProgress {
   }) {
     return UserProgress(
       userId: userId ?? this.userId,
+      email: email ?? this.email,
       currentDay: currentDay ?? this.currentDay,
       lastCompletedDay: lastCompletedDay ?? this.lastCompletedDay,
       lastCompletedAt: lastCompletedAt ?? this.lastCompletedAt,

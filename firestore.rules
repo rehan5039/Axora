@@ -1,26 +1,54 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // User authentication rules (from existing rules)
+    // Admin check function
+    function isAdmin() {
+      return exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // User authentication rules
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
+
     match /user_profiles/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Meditation content and progress rules
+    // Admin collection
+    match /admins/{adminId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && isAdmin();
+    }
+
+    // Meditation content rules - only admins can write
     match /meditation_content/{document=**} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if request.auth != null && isAdmin();
     }
     
+    // Meditation progress with email field
     match /meditation_progress/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if request.auth != null && (
+        request.auth.uid == userId || isAdmin()
+      );
+      
+      // Ensure email field is included
+      match /{document=**} {
+        allow write: if request.resource.data.email == request.auth.token.email;
+      }
     }
     
+    // Meditation stickers with email field
     match /meditation_stickers/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if request.auth != null && (
+        request.auth.uid == userId || isAdmin()
+      );
+      
+      // Ensure email field is included
+      match /{document=**} {
+        allow write: if request.resource.data.email == request.auth.token.email;
+      }
     }
   }
 } 

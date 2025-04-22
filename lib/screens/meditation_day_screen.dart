@@ -78,42 +78,6 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
     }
   }
   
-  Future<void> _markArticleAsCompleted() async {
-    if (_isArticleCompleted) return;
-    
-    setState(() {
-      _isArticleCompleted = true;
-    });
-    
-    try {
-      await _meditationService.markArticleAsCompleted(widget.content.id);
-      _checkAndCompleteDayIfBothCompleted();
-    } catch (e) {
-      print('Error marking article as completed: $e');
-      setState(() {
-        _isArticleCompleted = false;
-      });
-    }
-  }
-  
-  Future<void> _markAudioAsCompleted() async {
-    if (_isAudioCompleted) return;
-    
-    setState(() {
-      _isAudioCompleted = true;
-    });
-    
-    try {
-      await _meditationService.markAudioAsCompleted(widget.content.id);
-      _checkAndCompleteDayIfBothCompleted();
-    } catch (e) {
-      print('Error marking audio as completed: $e');
-      setState(() {
-        _isAudioCompleted = false;
-      });
-    }
-  }
-  
   Future<void> _checkAndCompleteDayIfBothCompleted() async {
     if (_isArticleCompleted && _isAudioCompleted && !_isDayCompleted && !_isCheckingCompletion) {
       setState(() {
@@ -121,8 +85,10 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
       });
       
       try {
+        print('Checking completion for content ID: ${widget.content.id}');
         final completed = await _meditationService.checkAndCompleteDayIfBothCompleted(widget.content.id);
         
+        print('Completion check result: $completed');
         setState(() {
           _isDayCompleted = completed;
           _isCheckingCompletion = false;
@@ -138,6 +104,50 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
           _isCheckingCompletion = false;
         });
       }
+    } else {
+      print('Not ready for completion check:');
+      print('Article completed: $_isArticleCompleted');
+      print('Audio completed: $_isAudioCompleted');
+      print('Day completed: $_isDayCompleted');
+      print('Checking completion: $_isCheckingCompletion');
+    }
+  }
+  
+  Future<void> _markAudioAsCompleted() async {
+    if (_isAudioCompleted) return;
+    
+    setState(() {
+      _isAudioCompleted = true;
+    });
+    
+    try {
+      print('Marking audio as completed for content ID: ${widget.content.id}');
+      await _meditationService.markAudioAsCompleted(widget.content.id);
+      await _checkAndCompleteDayIfBothCompleted();
+    } catch (e) {
+      print('Error marking audio as completed: $e');
+      setState(() {
+        _isAudioCompleted = false;
+      });
+    }
+  }
+  
+  Future<void> _markArticleAsCompleted() async {
+    if (_isArticleCompleted) return;
+    
+    setState(() {
+      _isArticleCompleted = true;
+    });
+    
+    try {
+      print('Marking article as completed for content ID: ${widget.content.id}');
+      await _meditationService.markArticleAsCompleted(widget.content.id);
+      await _checkAndCompleteDayIfBothCompleted();
+    } catch (e) {
+      print('Error marking article as completed: $e');
+      setState(() {
+        _isArticleCompleted = false;
+      });
     }
   }
   
@@ -193,20 +203,25 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
         title: Text('Day ${widget.content.day}: ${widget.content.title}'),
         bottom: TabBar(
           controller: _tabController,
+          indicatorWeight: 3,
+          indicatorColor: isDarkMode ? Colors.deepPurple : Colors.blue,
+          labelColor: isDarkMode ? Colors.white : Colors.black87,
+          unselectedLabelColor: isDarkMode ? Colors.white60 : Colors.black54,
+          labelStyle: const TextStyle(fontWeight: FontWeight.bold),
           tabs: const [
-            Tab(text: 'Article', icon: Icon(Icons.article)),
             Tab(text: 'Audio Meditation', icon: Icon(Icons.headphones)),
+            Tab(text: 'Article', icon: Icon(Icons.article)),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tabController,
         children: [
-          // Article Tab
-          _buildArticleTab(article, isDarkMode),
-          
           // Audio Tab
           _buildAudioTab(audio, isDarkMode),
+          
+          // Article Tab
+          _buildArticleTab(article, isDarkMode),
         ],
       ),
       bottomNavigationBar: _buildBottomBar(isDarkMode),

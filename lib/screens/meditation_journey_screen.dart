@@ -45,6 +45,9 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> {
       // Load meditation content
       var contents = await _meditationService.getAllMeditationContent();
       
+      // Sort contents by day number
+      contents.sort((a, b) => a.day.compareTo(b.day));
+      
       print('Meditation contents loaded: ${contents.length} items');
       
       // If no content is found, and we're in debug mode, create a default day 1 content
@@ -56,6 +59,7 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> {
         
         // Try loading again
         contents = await _meditationService.getAllMeditationContent();
+        contents.sort((a, b) => a.day.compareTo(b.day));
         print('After fallback creation, loaded ${contents.length} items');
       }
 

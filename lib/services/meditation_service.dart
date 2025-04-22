@@ -8,13 +8,51 @@ class MeditationService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   
-  // Get current user ID
+  // Get current user ID and email
   String? get _userId => _auth.currentUser?.uid;
+  String? get _userEmail => _auth.currentUser?.email;
   
   // Collection references
   CollectionReference get _contentCollection => _firestore.collection('meditation_content');
   CollectionReference get _progressCollection => _firestore.collection('meditation_progress');
   CollectionReference get _stickersCollection => _firestore.collection('meditation_stickers');
+  CollectionReference get _adminsCollection => _firestore.collection('admins');
+  
+  // Check if current user is admin
+  Future<bool> isAdmin() async {
+    if (_userId == null) return false;
+    final adminDoc = await _adminsCollection.doc(_userId).get();
+    return adminDoc.exists;
+  }
+  
+  // Add admin
+  Future<bool> addAdmin(String adminEmail) async {
+    try {
+      // Only existing admins can add new admins
+      if (!await isAdmin()) return false;
+
+      // Get user by email
+      final userQuery = await _firestore
+          .collection('users')
+          .where('email', isEqualTo: adminEmail)
+          .limit(1)
+          .get();
+
+      if (userQuery.docs.isEmpty) return false;
+
+      final userId = userQuery.docs.first.id;
+      await _adminsCollection.doc(userId).set({
+        'email': adminEmail,
+        'addedAt': FieldValue.serverTimestamp(),
+        'addedBy': _userId,
+      });
+
+      return true;
+    } catch (e) {
+      print('Error adding admin: $e');
+      return false;
+    }
+  }
   
   // Get meditation content for a specific day
   Future<MeditationContent?> getMeditationContentForDay(int day) async {
@@ -118,7 +156,7 @@ class MeditationService {
     }
   }
   
-  // Add new meditation content
+  // Add meditation content (admin only)
   Future<bool> addMeditationContent({
     required int day,
     required String title,
@@ -126,6 +164,12 @@ class MeditationService {
     required AudioContent audio,
   }) async {
     try {
+      // Check if user is admin
+      if (!await isAdmin()) {
+        print('User is not authorized to add meditation content');
+        return false;
+      }
+
       print('Adding new meditation content to Firestore...');
       print('Collection path: ${_contentCollection.path}');
       
@@ -135,6 +179,7 @@ class MeditationService {
         'article': article.toMap(),
         'audio': audio.toMap(),
         'createdAt': FieldValue.serverTimestamp(),
+        'createdBy': _userEmail,
         'isActive': true,
       });
       
@@ -155,7 +200,9 @@ class MeditationService {
     required bool isActive,
   }) async {
     try {
-      await _contentCollection.doc(contentId).update({
+      final docRef = _firestore.collection('meditation_content').doc(contentId);
+      
+      await docRef.update({
         'title': title,
         'article': article.toMap(),
         'audio': audio.toMap(),
@@ -170,9 +217,9 @@ class MeditationService {
     }
   }
   
-  // Get user progress
+  // Get user progress with email
   Future<UserProgress?> getUserProgress() async {
-    if (_userId == null) return null;
+    if (_userId == null || _userEmail == null) return null;
     
     try {
       final doc = await _progressCollection.doc(_userId).get();
@@ -181,6 +228,7 @@ class MeditationService {
         // Create initial progress if it doesn't exist
         final initialProgress = UserProgress(
           userId: _userId!,
+          email: _userEmail!,
           currentDay: 1,
           lastCompletedDay: 0,
           lastCompletedAt: Timestamp.now(),
@@ -238,9 +286,9 @@ class MeditationService {
     }
   }
   
-  // Get user stickers
+  // Get user stickers with email
   Future<UserStickers?> getUserStickers() async {
-    if (_userId == null) return null;
+    if (_userId == null || _userEmail == null) return null;
     
     try {
       final doc = await _stickersCollection.doc(_userId).get();
@@ -249,6 +297,7 @@ class MeditationService {
         // Create initial stickers if it doesn't exist
         final initialStickers = UserStickers(
           userId: _userId!,
+          email: _userEmail!,
           stickers: 0,
           earnedFromDays: [],
         );
@@ -432,6 +481,25 @@ class MeditationService {
       return true;
     } catch (e) {
       print('Error updating audio URL: $e');
+      return false;
+    }
+  }
+  
+  // Delete meditation content
+  Future<bool> deleteMeditationContent(String contentId) async {
+    try {
+      // Check if user is admin
+      if (!await isAdmin()) {
+        print('User is not authorized to delete meditation content');
+        return false;
+      }
+
+      await _contentCollection.doc(contentId).delete();
+      print('Successfully deleted meditation content: $contentId');
+      return true;
+    } catch (e) {
+      print('Error deleting meditation content: $e');
+      print('Stack trace: ${StackTrace.current}');
       return false;
     }
   }
