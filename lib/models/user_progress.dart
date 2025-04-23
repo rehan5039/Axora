@@ -75,7 +75,8 @@ class UserProgress {
     final diff = now.seconds - lastCompletedAt.seconds;
     
     // Check if 24 hours (86400 seconds) have passed
-    return diff >= 86400;
+    // Use a slightly lower threshold (23 hours = 82800 seconds) to account for timing discrepancies
+    return diff >= 82800; // 23 hours in seconds
   }
   
   // Get time remaining in seconds until next day unlocks

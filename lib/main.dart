@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:provider/provider.dart';
+import 'dart:async';
 import 'firebase_options.dart';
 import 'package:axora/screens/login_screen.dart';
 import 'package:axora/screens/signup_screen.dart';
@@ -12,6 +13,7 @@ import 'package:axora/widgets/theme_showcase.dart';
 import 'package:axora/screens/meditation_journey_screen.dart';
 import 'package:axora/screens/admin_meditation_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:axora/services/meditation_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -46,8 +48,50 @@ void main() async {
   );
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  Timer? _unlockCheckTimer;
+  final _meditationService = MeditationService();
+
+  @override
+  void initState() {
+    super.initState();
+    // Check for day unlocks every hour
+    _startUnlockCheckTimer();
+  }
+
+  @override
+  void dispose() {
+    _unlockCheckTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startUnlockCheckTimer() {
+    // Cancel any existing timer
+    _unlockCheckTimer?.cancel();
+    
+    // Check for unlocks every 15 minutes
+    _unlockCheckTimer = Timer.periodic(const Duration(minutes: 15), (_) async {
+      // Only check if the user is logged in
+      if (FirebaseAuth.instance.currentUser != null) {
+        try {
+          debugPrint('Scheduled check: Checking if any days need to be unlocked...');
+          final result = await _meditationService.updateCurrentDayIfTimerExpired();
+          if (result) {
+            debugPrint('Scheduled check: Successfully unlocked next day!');
+          }
+        } catch (e) {
+          debugPrint('Scheduled check: Error checking for day unlocks: $e');
+        }
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

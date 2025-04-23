@@ -944,7 +944,28 @@ class MeditationService {
     final progress = await getUserProgress();
     if (progress == null) return true; // First day is always unlocked
     
-    return progress.canUnlockNextDay();
+    // Check if the timer has expired and the next day could be unlocked
+    final timeExpired = progress.canUnlockNextDay();
+    if (timeExpired) {
+      print('Timer has expired - can unlock next day');
+      
+      // Automatically try to update the current day field right here
+      if (progress.currentDay <= progress.lastCompletedDay) {
+        final nextDay = progress.lastCompletedDay + 1;
+        try {
+          print('Auto-updating currentDay to $nextDay');
+          await _progressCollection.doc(_userId).update({
+            'currentDay': nextDay,
+            'lastUpdated': FieldValue.serverTimestamp()
+          });
+          print('Current day auto-updated to $nextDay');
+        } catch (e) {
+          print('Error auto-updating current day: $e');
+        }
+      }
+    }
+    
+    return timeExpired;
   }
   
   // Get next day unlock timestamp
@@ -1001,22 +1022,89 @@ class MeditationService {
       
       print('Checking if timer has expired to update current day...');
       final progress = await getUserProgress();
+      final stickers = await getUserStickers();
+      
       if (progress == null) {
         print('No progress data found');
         return false;
       }
       
       print('Current progress - currentDay: ${progress.currentDay}, lastCompletedDay: ${progress.lastCompletedDay}');
+      print('Can unlock next day: ${progress.canUnlockNextDay()}');
+      print('Hours since last completion: ${progress.hoursSinceLastCompletion()}');
+      print('User has ${stickers?.stickers ?? 0} stickers');
       
-      // If 24 hours have passed since last completion and we can unlock the next day
-      if (progress.canUnlockNextDay() && progress.currentDay <= progress.lastCompletedDay) {
-        // Update current day
-        final nextDay = progress.lastCompletedDay + 1;
+      // Check if we should unlock based on stickers
+      if (stickers != null && stickers.stickers > 0 && progress.currentDay < stickers.stickers + 1) {
+        final nextDay = stickers.stickers + 1;
+        print('Unlocking day $nextDay based on sticker count (${stickers.stickers})');
+        
+        // Get current server time
+        final serverTimestamp = FieldValue.serverTimestamp();
+        
+        // Update progress with fixes - set both currentDay and lastCompletedDay if needed
+        Map<String, dynamic> updates = {
+          'currentDay': nextDay,
+          'timeUnlocked': serverTimestamp,
+          'lastUpdated': serverTimestamp
+        };
+        
+        // Fix lastCompletedDay if it's inconsistent with stickers
+        if (progress.lastCompletedDay < stickers.stickers) {
+          updates['lastCompletedDay'] = stickers.stickers;
+          print('Fixing lastCompletedDay to match sticker count: ${stickers.stickers}');
+        }
+        
+        await _progressCollection.doc(_userId).update(updates);
+        print('Current day updated to $nextDay based on stickers');
+        return true;
+      }
+      
+      // FORCE UNLOCK: If lastCompletedDay > 0 and currentDay is behind, unlock anyway
+      final nextDay = progress.lastCompletedDay + 1;
+      if (progress.lastCompletedDay > 0 && progress.currentDay < nextDay) {
+        print('Force unlocking day $nextDay because it should be unlocked already');
+        
+        // Get current server time
+        final serverTimestamp = FieldValue.serverTimestamp();
+        
+        // Update the user's progress with the new current day
+        await _progressCollection.doc(_userId).update({
+          'currentDay': nextDay,
+          'timeUnlocked': serverTimestamp,
+          'lastUpdated': serverTimestamp
+        });
+        
+        print('Current day force-updated to $nextDay');
+        return true;
+      }
+      // Regular check: If 24 hours have passed since last completion, unlock the next day
+      else if (progress.canUnlockNextDay()) {
+        // For day 2, if we have a sticker, unlock regardless of lastCompletedDay
+        if (nextDay == 2 && stickers != null && stickers.stickers > 0) {
+          print('Unlocking day 2 based on having completed day 1 (sticker)');
+          
+          // Get current server time
+          final serverTimestamp = FieldValue.serverTimestamp();
+          
+          // Update fixing both fields for consistency
+          await _progressCollection.doc(_userId).update({
+            'currentDay': 2,
+            'lastCompletedDay': 1, // Fix the lastCompletedDay
+            'timeUnlocked': serverTimestamp,
+            'lastUpdated': serverTimestamp
+          });
+          
+          print('Current day updated to 2 and fixed lastCompletedDay to 1');
+          return true;
+        }
+        
         print('Timer expired, unlocking day $nextDay');
         
         // Get current server time
         final serverTimestamp = FieldValue.serverTimestamp();
         
+        // Update the user's progress with the new current day
         await _progressCollection.doc(_userId).update({
           'currentDay': nextDay,
           'timeUnlocked': serverTimestamp,
@@ -1026,8 +1114,7 @@ class MeditationService {
         print('Current day updated to $nextDay');
         return true;
       } else {
-        print('Timer not expired or current day already ahead of last completed day');
-        print('canUnlockNextDay: ${progress.canUnlockNextDay()}');
+        print('Timer not expired yet');
         print('Time since last completion (hours): ${progress.hoursSinceLastCompletion()}');
         return false;
       }
@@ -1083,6 +1170,79 @@ class MeditationService {
       }
     } catch (e) {
       print('Error fixing unlock time field: $e');
+      print('Stack trace: ${StackTrace.current}');
+      return false;
+    }
+  }
+  
+  // Force unlock a specific day if it should be available
+  Future<bool> forceUnlockDay(int day) async {
+    try {
+      if (_userId == null) {
+        print('Cannot force unlock: userId is null');
+        return false;
+      }
+      
+      print('Force unlocking day $day');
+      final progress = await getUserProgress();
+      final stickers = await getUserStickers();
+      
+      if (progress == null) {
+        print('No progress data found');
+        return false;
+      }
+      
+      // Check if we should allow unlocking based on stickers or lastCompletedDay
+      bool canUnlock = false;
+      int expectedDay = 0;
+      
+      // First check based on stickers
+      if (stickers != null && stickers.stickers > 0) {
+        expectedDay = stickers.stickers + 1;
+        canUnlock = day == expectedDay;
+        print('Based on stickers ($stickers.stickers), next day to unlock is: $expectedDay. Can unlock: $canUnlock');
+      }
+      
+      // If not determined by stickers, check based on lastCompletedDay
+      if (!canUnlock && progress.lastCompletedDay > 0) {
+        expectedDay = progress.lastCompletedDay + 1;
+        canUnlock = day == expectedDay;
+        print('Based on lastCompletedDay (${progress.lastCompletedDay}), next day to unlock is: $expectedDay. Can unlock: $canUnlock');
+      }
+      
+      // If we can't unlock based on either, but this is day 2 and we have a sticker, force it
+      if (!canUnlock && day == 2 && stickers != null && stickers.stickers > 0) {
+        canUnlock = true;
+        print('Special case: Forcing unlock of Day 2 because user has completed Day 1 (has sticker)');
+      }
+      
+      if (!canUnlock) {
+        print('Cannot force unlock day $day - not eligible for unlocking');
+        return false;
+      }
+      
+      // Force the current day to be the requested day
+      final serverTimestamp = FieldValue.serverTimestamp();
+      
+      // Update both the currentDay and lastCompletedDay if needed
+      Map<String, dynamic> updates = {
+        'currentDay': day,
+        'timeUnlocked': serverTimestamp,
+        'lastUpdated': serverTimestamp
+      };
+      
+      // If lastCompletedDay is 0 but we have stickers, set lastCompletedDay to day-1
+      if (progress.lastCompletedDay == 0 && stickers != null && stickers.stickers > 0 && day > 1) {
+        updates['lastCompletedDay'] = day - 1;
+        print('Fixing lastCompletedDay to ${day - 1}');
+      }
+      
+      await _progressCollection.doc(_userId).update(updates);
+      
+      print('Successfully force unlocked day $day');
+      return true;
+    } catch (e) {
+      print('Error force unlocking day: $e');
       print('Stack trace: ${StackTrace.current}');
       return false;
     }

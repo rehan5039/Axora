@@ -8,6 +8,7 @@ import 'package:axora/screens/meditation_day_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:axora/providers/theme_provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class MeditationJourneyScreen extends StatefulWidget {
   const MeditationJourneyScreen({super.key});
@@ -42,6 +43,13 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
     _unlockTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+  
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Check for expired timers each time the screen becomes visible
+    _checkForExpiredTimersOnLoad();
   }
   
   @override
@@ -224,24 +232,34 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
       if (_lastCompletedAt != null && (hasCompletedBasedOnProgress || hasCompletedBasedOnStickers)) {
         final difference = now.difference(_lastCompletedAt!);
         
-        // Even if 24 hours have passed, we still want to show a countdown initially
+        // Check if 24 hours have passed and if we need to unlock the next day
         if (difference.inHours >= 24) {
-          // Get or update the server unlock time
-          final serverUnlockTime = await _meditationService.getNextDayUnlockTime();
+          print('24 hours have passed. Forcing unlock of next day...');
           
-          // Only update UI to show unlocked if auto-unlock is implemented
-          _canUnlockNextDay = true;
-          // Show 00h 00m 00s
-          _timeRemaining = Duration.zero;
+          // Explicitly call the method to update current day if the timer expired
+          final unlockResult = await _meditationService.updateCurrentDayIfTimerExpired();
+          print('Auto-unlock result: $unlockResult');
+          
+          // Reload progress after update
+          final updatedProgress = await _meditationService.getUserProgress();
+          if (updatedProgress != null) {
+            setState(() {
+              _userProgress = updatedProgress;
+              _currentDay = updatedProgress.currentDay;
+              _canUnlockNextDay = true;
+              _timeRemaining = Duration.zero;
+            });
+            print('Updated current day to: ${updatedProgress.currentDay}');
+          }
         } else {
           // Update the timer - remaining time until 24 hours
           _canUnlockNextDay = false;
           _timeRemaining = Duration(hours: 24) - difference;
           print('Time remaining: ${_timeRemaining.inHours}h ${_timeRemaining.inMinutes % 60}m');
+          
+          // Start or restart the timer
+          _updateUnlockTimer();
         }
-        
-        // Start or restart the timer
-        _updateUnlockTimer();
       } else if (_currentDay == 1 && !hasCompletedBasedOnStickers) {
         // First day, no waiting required
         _canUnlockNextDay = true;
@@ -274,14 +292,27 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
       print('Starting timer with remaining time: ${_timeRemaining.inSeconds} seconds');
       
       // Update once a second
-      _unlockTimer = Timer.periodic(Duration(seconds: 1), (timer) {
+      _unlockTimer = Timer.periodic(Duration(seconds: 1), (timer) async {
         if (_timeRemaining <= Duration.zero) {
-          print('Timer completed!');
+          print('Timer completed! Unlocking next day...');
           timer.cancel();
+          
+          // First, explicitly try to update the current day
+          final unlockResult = await _meditationService.updateCurrentDayIfTimerExpired();
+          print('Timer expired auto-unlock result: $unlockResult');
+          
+          // Then reload updated progress
+          final updatedProgress = await _meditationService.getUserProgress();
+          
           setState(() {
             _canUnlockNextDay = true;
             _timeRemaining = Duration.zero;
+            if (updatedProgress != null) {
+              _userProgress = updatedProgress;
+              _currentDay = updatedProgress.currentDay;
+            }
           });
+          
           // Re-sync with server to confirm unlock
           _syncWithServerAndUnlockNextDay();
         } else {
@@ -344,6 +375,65 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
       print('Fallback content creation result: ${success ? 'Success' : 'Failed'}');
     } catch (e) {
       print('Error creating fallback content: $e');
+    }
+  }
+
+  Future<void> _checkForExpiredTimersOnLoad() async {
+    // Skip if we're already loading data
+    if (_isLoading) return;
+    
+    try {
+      final progress = await _meditationService.getUserProgress();
+      if (progress != null && progress.canUnlockNextDay()) {
+        print('Found expired timer on screen load - attempting to unlock next day');
+        final result = await _meditationService.updateCurrentDayIfTimerExpired();
+        if (result) {
+          print('Successfully unlocked next day on screen load');
+          _loadData(); // Reload to show updated state
+        }
+      }
+    } catch (e) {
+      print('Error checking for expired timers on load: $e');
+    }
+  }
+
+  Future<void> _directlyForceUnlockDay(int day) async {
+    print('Emergency direct unlock for day $day');
+    
+    try {
+      // Get user progress and stickers
+      final progress = await _meditationService.getUserProgress();
+      final stickers = await _userStickers;
+      
+      if (progress != null) {
+        // Create updates
+        Map<String, dynamic> updates = {
+          'currentDay': day,
+          'timeUnlocked': FieldValue.serverTimestamp(),
+          'lastUpdated': FieldValue.serverTimestamp()
+        };
+        
+        // If this is day 2 and we have a sticker for day 1, fix lastCompletedDay
+        if (day == 2 && stickers != null && stickers.stickers > 0) {
+          updates['lastCompletedDay'] = 1;
+        }
+        
+        // Direct update to database
+        await FirebaseFirestore.instance
+            .collection('meditation_progress')
+            .doc(FirebaseAuth.instance.currentUser?.uid)
+            .update(updates);
+        
+        print('Emergency direct update successful!');
+        
+        // Refresh data
+        await _loadData();
+        setState(() {
+          _currentDay = day; // Force update UI
+        });
+      }
+    } catch (e) {
+      print('Error in emergency unlock: $e');
     }
   }
 
@@ -565,14 +655,22 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
     }
     
     final canUnlock = _userProgress?.canUnlockNextDay() ?? false;
+    final isTimeOver = _timeRemaining.inSeconds <= 0;
     
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: isDarkMode ? Colors.grey[800] : Colors.grey[200],
+        color: isDarkMode ? Colors.grey[800] : Colors.grey[100],
         borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
         border: Border.all(
-          color: Colors.orange,
+          color: isTimeOver ? Colors.green : Colors.orange,
           width: 2,
         ),
       ),
@@ -580,20 +678,20 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            Icons.timer,
-            color: Colors.orange,
-            size: 20,
+            isTimeOver ? Icons.check_circle : Icons.timer,
+            color: isTimeOver ? Colors.green : Colors.orange,
+            size: 24,
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 10),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 hasCompletedAnyDay 
-                  ? 'Day $nextDayNumber Unlocks In:' 
+                  ? 'Day $nextDayNumber ${isTimeOver ? "Ready!" : "Unlocks In:"}' 
                   : 'Complete Day 1 First',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 14,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -602,18 +700,36 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
                   Text(
                     _formattedTimeRemaining,
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: Colors.orange,
+                      color: isTimeOver ? Colors.green : Colors.orange,
                     ),
                   ),
-                  const SizedBox(width: 4),
+                  const SizedBox(width: 8),
                   GestureDetector(
-                    onTap: () => _syncWithServerAndUnlockNextDay(),
-                    child: Icon(
-                      Icons.sync,
-                      size: 14,
-                      color: Colors.blue,
+                    onTap: () {
+                      // Show a message to the user
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(isTimeOver 
+                            ? 'Refreshing to unlock Day $nextDayNumber...' 
+                            : 'Syncing time remaining...'),
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                      _syncWithServerAndUnlockNextDay();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Icon(
+                        isTimeOver ? Icons.refresh : Icons.sync,
+                        size: 16,
+                        color: Colors.blue,
+                      ),
                     ),
                   ),
                 ],
@@ -632,6 +748,7 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
     final isCompleted = _userStickers?.hasStickerForDay(content.day) ?? false;
     final isUnlocked = content.day <= currentDay;
     final isCurrentDay = content.day == currentDay;
+    final isReadyToUnlock = content.day == currentDay + 1 && _canUnlockNextDay;
     
     final cardColor = isCompleted
         ? (isDarkMode ? Colors.green[900] : Colors.green[100])
@@ -642,13 +759,15 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
     
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
-      elevation: isCurrentDay ? 4 : 2,
+      elevation: isCurrentDay ? 4 : (isReadyToUnlock ? 3 : 2),
       color: cardColor,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: isCurrentDay 
             ? BorderSide(color: isDarkMode ? Colors.deepPurple : Colors.blue, width: 2)
-            : BorderSide.none,
+            : (isReadyToUnlock 
+                ? BorderSide(color: Colors.green, width: 2)
+                : BorderSide.none),
       ),
       child: Stack(
         children: [
@@ -666,7 +785,118 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
                       ),
                     );
                   }
-                : null,
+                : content.day == currentDay + 1 && _canUnlockNextDay
+                    ? () async {
+                        // Try to unlock this day before opening
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Unlocking Day ${content.day}...'),
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                        
+                        // Force unlock the next day
+                        try {
+                          // First try to force update the database directly
+                          final progress = await _meditationService.getUserProgress();
+                          if (progress != null && progress.lastCompletedDay > 0) {
+                            final nextDay = progress.lastCompletedDay + 1;
+                            if (content.day == nextDay) {
+                              // This is the correct next day to unlock - force it
+                              print('Attempting to force Day $nextDay to unlock...');
+                              
+                              // Try the dedicated force unlock method first
+                              final forceResult = await _meditationService.forceUnlockDay(nextDay);
+                              if (forceResult) {
+                                print('Successfully forced Day $nextDay to unlock with direct method');
+                                
+                                // Reload data immediately
+                                await _loadData();
+                                
+                                // Now it should be unlocked, open the day
+                                if (mounted) {
+                                  // Open the day content
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => MeditationDayScreen(
+                                        content: content,
+                                        onComplete: _loadData,
+                                      ),
+                                    ),
+                                  );
+                                  return; // Exit early, we've handled it
+                                }
+                              } else {
+                                // If dedicated method fails, try the regular unlock method multiple times
+                                bool success = false;
+                                for (int i = 0; i < 3; i++) {
+                                  final unlockResult = await _meditationService.updateCurrentDayIfTimerExpired();
+                                  if (unlockResult) {
+                                    success = true;
+                                    break;
+                                  }
+                                  await Future.delayed(Duration(milliseconds: 300));
+                                }
+                                
+                                if (success) {
+                                  print('Successfully forced Day $nextDay to unlock after multiple attempts');
+                                  
+                                  // Reload data immediately
+                                  await _loadData();
+                                  
+                                  // Now it should be unlocked, open the day
+                                  if (mounted) {
+                                    // Open the day content
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => MeditationDayScreen(
+                                          content: content,
+                                          onComplete: _loadData,
+                                        ),
+                                      ),
+                                    );
+                                    return; // Exit early, we've handled it
+                                  }
+                                }
+                              }
+                            }
+                          }
+                          
+                          // EMERGENCY: If all normal unlock methods failed, try direct database update
+                          print('All normal unlock methods failed. Attempting emergency direct unlock for day ${content.day}');
+                          await _directlyForceUnlockDay(content.day);
+                          
+                          // Reload data immediately
+                          await _loadData();
+                          
+                          // Now it should be unlocked, open the day
+                          if (mounted) {
+                            // Open the day content
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => MeditationDayScreen(
+                                  content: content,
+                                  onComplete: _loadData,
+                                ),
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          print('Error during day unlock: $e');
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Error unlocking day: ${e.toString()}'),
+                                duration: const Duration(seconds: 3),
+                              ),
+                            );
+                          }
+                        }
+                      }
+                    : null,
             leading: Stack(
               children: [
                 CircleAvatar(
@@ -770,7 +1000,9 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
                     isCompleted ? Icons.check_circle : Icons.arrow_forward_ios,
                     color: isCompleted ? Colors.green : null,
                   )
-                : const Icon(Icons.lock, color: Colors.grey),
+                : isReadyToUnlock
+                    ? Icon(Icons.lock_open, color: Colors.green)
+                    : const Icon(Icons.lock, color: Colors.grey),
           ),
           if (isCurrentDay)
             Positioned(
@@ -787,6 +1019,29 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 child: const Text(
                   'TODAY',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          if (isReadyToUnlock)
+            Positioned(
+              top: 0,
+              right: 10,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.green,
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(8),
+                    bottomRight: Radius.circular(8),
+                  ),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: const Text(
+                  'READY!',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 10,
