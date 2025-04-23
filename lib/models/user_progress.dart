@@ -58,6 +58,16 @@ class UserProgress {
     );
   }
   
+  // Calculate how many hours have passed since the last completion
+  double hoursSinceLastCompletion() {
+    if (lastCompletedDay == 0) return 0;
+    
+    final now = Timestamp.now();
+    final diffInSeconds = now.seconds - lastCompletedAt.seconds;
+    
+    return diffInSeconds / 3600;
+  }
+  
   bool canUnlockNextDay() {
     if (lastCompletedDay == 0) return true;
     
@@ -70,12 +80,16 @@ class UserProgress {
   
   // Get time remaining in seconds until next day unlocks
   int getSecondsUntilNextDayUnlocks() {
-    if (lastCompletedDay == 0 || canUnlockNextDay()) return 0;
+    if (lastCompletedDay == 0) return 0;
     
     final now = Timestamp.now();
-    final elapsedSeconds = now.seconds - lastCompletedAt.seconds;
-    final remainingSeconds = 86400 - elapsedSeconds;
+    final unlockTime = Timestamp.fromMillisecondsSinceEpoch(
+      lastCompletedAt.millisecondsSinceEpoch + (24 * 60 * 60 * 1000)
+    );
     
+    final remainingSeconds = unlockTime.seconds - now.seconds;
+    
+    // Return 0 if time has expired
     return remainingSeconds > 0 ? remainingSeconds : 0;
   }
   

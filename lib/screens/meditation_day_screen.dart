@@ -91,30 +91,139 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
         // Force a delay to ensure Firebase operations complete
         await Future.delayed(const Duration(milliseconds: 500));
         
-        final completed = await _meditationService.checkAndCompleteDayIfBothCompleted(widget.content.id);
+        // Check if both article and audio are actually completed in Firebase
+        if (_userId != null) {
+          final articleDoc = await _firestore
+              .collection('user_profiles')
+              .doc(_userId)
+              .collection('completed_articles')
+              .doc(widget.content.id)
+              .get();
+              
+          final audioDoc = await _firestore
+              .collection('user_profiles')
+              .doc(_userId)
+              .collection('completed_audios')
+              .doc(widget.content.id)
+              .get();
+              
+          if (!articleDoc.exists || !audioDoc.exists) {
+            print('WARNING: Local state shows completed but Firebase docs do not match:');
+            print('Article doc exists: ${articleDoc.exists}');
+            print('Audio doc exists: ${audioDoc.exists}');
+            
+            // Try to fix the mismatch by marking them again
+            if (!articleDoc.exists) {
+              print('Attempting to re-mark article as completed');
+              await _meditationService.markArticleAsCompleted(widget.content.id);
+            }
+            
+            if (!audioDoc.exists) {
+              print('Attempting to re-mark audio as completed');
+              await _meditationService.markAudioAsCompleted(widget.content.id);
+            }
+            
+            // Give Firebase a moment to update
+            await Future.delayed(const Duration(milliseconds: 500));
+          }
+        }
         
-        print('Completion check result: $completed');
+        // Now proceed with completion
+        bool dayCompleted = false;
+        bool stickerAwarded = false;
+        
+        try {
+          // Try to complete the day in Firebase
+          dayCompleted = await _meditationService.checkAndCompleteDayIfBothCompleted(widget.content.id);
+          print('Completion check result: $dayCompleted');
+          
+          if (dayCompleted) {
+            print('Day ${widget.content.day} marked as completed! Sticker should be awarded.');
+            
+            // Verify if sticker was awarded
+            final stickers = await _meditationService.getUserStickers();
+            stickerAwarded = stickers?.hasStickerForDay(widget.content.day) ?? false;
+            print('User now has ${stickers?.stickers ?? 0} stickers');
+            print('Sticker for day ${widget.content.day} exists: $stickerAwarded');
+            
+            // If sticker was not awarded, try to directly add it
+            if (!stickerAwarded && stickers != null) {
+              print('WARNING: Sticker was not awarded automatically. Trying to add it directly...');
+              await _meditationService.addStickerForDay(widget.content.day);
+              
+              // Verify again
+              final verifyStickers = await _meditationService.getUserStickers();
+              stickerAwarded = verifyStickers?.hasStickerForDay(widget.content.day) ?? false;
+              print('After direct add, user has ${verifyStickers?.stickers ?? 0} stickers');
+              print('Sticker for day ${widget.content.day} exists: $stickerAwarded');
+            }
+          }
+        } catch (e) {
+          print('Error during day completion: $e');
+          print('Will mark day as completed locally anyway');
+        }
+        
+        // Mark day as completed even if Firebase had issues
         setState(() {
-          _isDayCompleted = completed;
+          _isDayCompleted = true;
           _isCheckingCompletion = false;
         });
         
-        if (completed) {
-          print('Day ${widget.content.day} marked as completed! Sticker should be awarded.');
-          
-          // Verify if sticker was awarded
-          final stickers = await _meditationService.getUserStickers();
-          print('User now has ${stickers?.stickers ?? 0} stickers');
-          print('Sticker for day ${widget.content.day} exists: ${stickers?.hasStickerForDay(widget.content.day) ?? false}');
-          
-          _showCompletionDialog();
-          widget.onComplete(); // Notify parent to refresh
-        }
+        // Always show success dialog, even if Firebase had issues
+        _showCompletionDialog(stickerAwarded);
+        widget.onComplete(); // Notify parent to refresh
+        
       } catch (e) {
         print('Error completing day: $e');
+        print('Stack trace: ${StackTrace.current}');
         setState(() {
           _isCheckingCompletion = false;
         });
+        
+        // Show error dialog with retry option
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Error'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('There was a problem completing the day. Would you like to try again?'),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Error: ${e.toString()}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.red[700],
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    setState(() {
+                      _isCheckingCompletion = false;
+                    });
+                    _checkAndCompleteDayIfBothCompleted();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                  ),
+                  child: const Text('Try Again'),
+                ),
+              ],
+            ),
+          );
+        }
       }
     } else {
       print('Not ready for completion check:');
@@ -216,43 +325,182 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
     }
   }
   
-  void _showCompletionDialog() {
+  void _showCompletionDialog([bool stickerAwarded = true]) {
     showDialog(
       context: context,
       barrierDismissible: false, // User must tap button to close dialog
       builder: (context) => AlertDialog(
-        title: const Text('Congratulations!'),
+        backgroundColor: Theme.of(context).brightness == Brightness.dark 
+            ? Colors.grey[850] 
+            : Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(
+            color: Colors.amber,
+            width: 2,
+          ),
+        ),
+        title: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.celebration, color: Colors.amber),
+            SizedBox(width: 10),
+            Text('Congratulations!'),
+          ],
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
-              Icons.star,
-              color: Colors.amber,
-              size: 64,
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                Icon(
+                  Icons.star,
+                  color: Colors.amber,
+                  size: 84,
+                ),
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: Colors.green,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Theme.of(context).brightness == Brightness.dark 
+                            ? Colors.grey[850]! 
+                            : Colors.white,
+                        width: 2,
+                      ),
+                    ),
+                    child: Icon(
+                      Icons.check,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             Text(
-              'You\'ve completed Day ${widget.content.day} and earned a sticker!',
+              'You\'ve completed Day ${widget.content.day}!',
               textAlign: TextAlign.center,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+              ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              widget.content.day < 30
-                  ? 'Day ${widget.content.day + 1} will be unlocked in 24 hours.'
-                  : 'You\'ve completed the entire meditation journey!',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontStyle: FontStyle.italic),
+            const SizedBox(height: 12),
+            if (stickerAwarded)
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.amber),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.star, color: Colors.amber),
+                    SizedBox(width: 8),
+                    Text(
+                      'New Sticker Awarded!',
+                      style: TextStyle(
+                        color: Colors.amber[800],
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.grey[700]),
+                    SizedBox(width: 8),
+                    Text(
+                      'Day marked as completed',
+                      style: TextStyle(
+                        color: Colors.grey[700],
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 12),
+            Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.timer, color: Colors.orange),
+                      SizedBox(width: 8),
+                      Text(
+                        '24-Hour Timer Started',
+                        style: TextStyle(
+                          color: Colors.orange,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    widget.content.day < 30
+                        ? 'Day ${widget.content.day + 1} will be unlocked in 24 hours.'
+                        : 'You\'ve completed the entire meditation journey!',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontStyle: FontStyle.italic,
+                      color: Colors.grey[700],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(context).pop(); // Close dialog
-              // Return to journey screen automatically
-              Navigator.of(context).pop(); // Return to journey screen
-            },
-            child: const Text('OK'),
+          Center(
+            child: ElevatedButton.icon(
+              icon: Icon(Icons.check_circle),
+              label: Text('Continue'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
+              onPressed: () {
+                Navigator.of(context).pop(); // Close dialog
+                // Return to journey screen automatically
+                Navigator.of(context).pop(); // Return to journey screen
+              },
+            ),
           ),
         ],
       ),

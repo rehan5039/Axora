@@ -16,7 +16,7 @@ class MeditationJourneyScreen extends StatefulWidget {
   State<MeditationJourneyScreen> createState() => _MeditationJourneyScreenState();
 }
 
-class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> {
+class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with WidgetsBindingObserver {
   final _meditationService = MeditationService();
   bool _isLoading = true;
   List<MeditationContent> _meditationContents = [];
@@ -24,17 +24,33 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> {
   UserStickers? _userStickers;
   Timer? _unlockTimer;
   Duration _timeRemaining = Duration.zero;
+  bool _isSyncingWithServer = false;
+  String? _syncError;
+  DateTime? _lastCompletedAt;
+  int _currentDay = 1;
+  bool _canUnlockNextDay = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadData();
   }
   
   @override
   void dispose() {
     _unlockTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+  
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // App was resumed from background, sync with server
+      print('App resumed, syncing with server...');
+      _syncWithServerAndUnlockNextDay();
+    }
   }
 
   Future<void> _loadData() async {
@@ -45,15 +61,56 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> {
     try {
       print('Loading meditation journey data...');
       
+      // Fix any issues with the unlock time field
+      await _meditationService.fixUnlockTimeField();
+      
       // Load user data first
       final progress = await _meditationService.getUserProgress();
       final stickers = await _meditationService.getUserStickers();
       
       print('User progress loaded: ${progress?.currentDay ?? 'null'}');
-      print('Last completed day: ${progress?.lastCompletedDay ?? 'null'}');
-      print('Completed days: ${progress?.completedDays?.join(', ') ?? 'none'}');
-      print('User stickers loaded: ${stickers?.stickers ?? 'null'}');
-      print('Stickers earned from days: ${stickers?.earnedFromDays?.join(', ') ?? 'none'}');
+      if (progress != null) {
+        print('Last completed day: ${progress.lastCompletedDay}');
+        print('Last completed at: ${progress.lastCompletedAt.toDate()}');
+        print('Hours since last completed: ${progress.hoursSinceLastCompletion()}');
+        print('Completed days: ${progress.completedDays.join(', ')}');
+        
+        // Always check if we need to display a timer after completing a day
+        if (progress.lastCompletedDay > 0 || (stickers != null && stickers.stickers > 0)) {
+          // Always calculate remaining time, even if canUnlockNextDay is true
+          // This ensures we show 0:00:00 when the timer expires
+          final remainingSeconds = progress.getSecondsUntilNextDayUnlocks();
+          _timeRemaining = Duration(seconds: remainingSeconds);
+          print('Time remaining for next day: $_timeRemaining');
+          
+          final canUnlock = progress.canUnlockNextDay();
+          print('Can unlock next day: $canUnlock');
+          
+          if (canUnlock) {
+            print('Timer has expired, checking with server...');
+            await _meditationService.updateCurrentDayIfTimerExpired();
+            // Reload progress after update
+            final updatedProgress = await _meditationService.getUserProgress();
+            if (updatedProgress != null) {
+              setState(() {
+                _userProgress = updatedProgress;
+              });
+            }
+          } else {
+            // Get time remaining from the server
+            final serverUnlockTime = await _meditationService.getNextDayUnlockTime();
+            final now = Timestamp.now();
+            final remainingSeconds = serverUnlockTime.seconds - now.seconds;
+            
+            if (remainingSeconds > 0) {
+              print('Setting time remaining from server: $remainingSeconds seconds');
+              setState(() {
+                _timeRemaining = Duration(seconds: remainingSeconds);
+              });
+            }
+          }
+        }
+      }
       
       // Load meditation content
       var contents = await _meditationService.getAllMeditationContent();
@@ -88,22 +145,28 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> {
       
       // Debug the unlock timer status
       print('Unlock timer status:');
-      if (_userProgress != null) {
-        print('  Can unlock next day: ${_userProgress!.canUnlockNextDay()}');
-        print('  Seconds until next unlock: ${_userProgress!.getSecondsUntilNextDayUnlocks()}');
-        print('  Time remaining: ${_userProgress!.getFormattedTimeRemaining()}');
-        print('  Current timer value: ${_timeRemaining.inSeconds} seconds');
+      if (_timeRemaining.inSeconds > 0) {
+        print('Time remaining: ${_formattedTimeRemaining}');
+        if (progress != null) {
+          final unlockDateTime = progress.lastCompletedAt.toDate().add(Duration(hours: 24));
+          print('Next day will unlock at: $unlockDateTime');
+        }
+      } else if (progress != null && progress.lastCompletedDay > 0) {
+        print('Timer has expired - next day can be unlocked');
+        
+        // If timer has expired but still showing 0, make sure the UI shows something
+        final nextDay = progress.lastCompletedDay + 1;
+        print('Next day to unlock: $nextDay');
+      } else {
+        print('No active timer or next day already unlocked');
       }
     } catch (e) {
       print('Error loading meditation journey data: $e');
       print('Stack trace: ${StackTrace.current}');
-      
-      // Even on error, update UI state
       setState(() {
         _isLoading = false;
       });
       
-      // Show error message to user
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -119,54 +182,129 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> {
     }
   }
   
-  void _updateUnlockTimer() {
-    _unlockTimer?.cancel();
+  Future<void> _syncWithServerAndUnlockNextDay() async {
+    if (_isSyncingWithServer) return;
     
-    // Only set up timer if we have user progress
-    if (_userProgress == null) {
-      print('Cannot update unlock timer - user progress is null');
-      return;
-    }
+    setState(() {
+      _isSyncingWithServer = true;
+      _syncError = null;
+    });
     
-    // Calculate time until next day unlocks
-    if (_userProgress!.lastCompletedDay > 0 && !_userProgress!.canUnlockNextDay()) {
-      final now = Timestamp.now();
-      final lastCompletedAt = _userProgress!.lastCompletedAt;
-      final secondsSinceLastCompleted = now.seconds - lastCompletedAt.seconds;
+    try {
+      print('Starting sync with server...');
+      final meditationProgress = await _meditationService.getUserProgress();
+      final userStickers = await _meditationService.getUserStickers();
       
-      // 24 hours (86400 seconds) from last completion
-      final remainingSeconds = 86400 - secondsSinceLastCompleted;
-      
-      if (remainingSeconds > 0) {
-        print('Setting unlock timer for ${remainingSeconds} seconds');
-        _timeRemaining = Duration(seconds: remainingSeconds.toInt());
-        
-        // Update timer every second
-        _unlockTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-          if (_timeRemaining.inSeconds <= 0) {
-            print('Timer completed - cancelling timer and reloading data');
-            timer.cancel();
-            _loadData(); // Refresh data as new day is available
-          } else {
-            setState(() {
-              _timeRemaining = Duration(seconds: _timeRemaining.inSeconds - 1);
-            });
-          }
+      if (meditationProgress == null) {
+        print('No meditation progress found during sync.');
+        setState(() {
+          _isSyncingWithServer = false;
+          _syncError = 'Could not retrieve your meditation progress.';
         });
-      } else {
-        print('No time remaining for next unlock - can unlock now');
+        return;
       }
-    } else {
-      print('No unlock timer needed - either no completed days or can already unlock next day');
+      
+      print('Got meditation progress - current day: ${meditationProgress.currentDay}');
+      print('Last completed at: ${meditationProgress.lastCompletedAt?.toDate()}');
+      print('User has ${userStickers?.stickers ?? 0} stickers');
+
+      // Always update the UI with the latest progress
+      setState(() {
+        _currentDay = meditationProgress.currentDay;
+        _lastCompletedAt = meditationProgress.lastCompletedAt?.toDate();
+        _userStickers = userStickers;
+      });
+      
+      // Check if user has completed a day based on stickers but it's not reflected in progress
+      final hasCompletedBasedOnStickers = (userStickers?.stickers ?? 0) > 0;
+      final hasCompletedBasedOnProgress = meditationProgress.lastCompletedDay > 0;
+      
+      // Calculate time since last completion
+      final now = DateTime.now();
+      if (_lastCompletedAt != null && (hasCompletedBasedOnProgress || hasCompletedBasedOnStickers)) {
+        final difference = now.difference(_lastCompletedAt!);
+        final hoursPassed = difference.inHours;
+        
+        print('Hours passed since last completion: $hoursPassed');
+        
+        // Check if 24 hours have passed since last completion
+        if (difference.inHours >= 24) {
+          print('24 hours have passed. User can unlock next day.');
+          _canUnlockNextDay = true;
+          _unlockTimer?.cancel();
+          _timeRemaining = Duration.zero;
+        } else {
+          // Update the timer
+          _canUnlockNextDay = false;
+          _timeRemaining = Duration(hours: 24) - difference;
+          print('Time remaining: ${_timeRemaining.inHours}h ${_timeRemaining.inMinutes % 60}m');
+          
+          // Start or restart the timer
+          _updateUnlockTimer();
+        }
+      } else if (_currentDay == 1 && !hasCompletedBasedOnStickers) {
+        // First day, no waiting required
+        _canUnlockNextDay = true;
+        _timeRemaining = Duration.zero;
+        _unlockTimer?.cancel();
+      } else {
+        // No last completion time but not the first day - this is an error state
+        print('WARNING: No last completion time found for day $_currentDay');
+        _canUnlockNextDay = false;
+        _timeRemaining = Duration(hours: 24); // Default to full waiting period
+        _updateUnlockTimer();
+      }
+      
+      // Make sure we always update the UI after syncing
+      setState(() {
+        _isLoading = false;
+        _isSyncingWithServer = false;
+      });
+      
+    } catch (e) {
+      print('Error during sync: $e');
+      setState(() {
+        _isSyncingWithServer = false;
+        _syncError = 'Failed to sync: ${e.toString()}';
+        _isLoading = false;
+      });
     }
   }
-  
+
+  void _updateUnlockTimer() {
+    // Cancel any existing timer
+    _unlockTimer?.cancel();
+    
+    // Only start a new timer if there's time remaining
+    if (_timeRemaining > Duration.zero) {
+      print('Starting timer with remaining time: ${_timeRemaining.inSeconds} seconds');
+      
+      // Update once a second
+      _unlockTimer = Timer.periodic(Duration(seconds: 1), (timer) {
+        if (_timeRemaining <= Duration.zero) {
+          print('Timer completed!');
+          timer.cancel();
+          setState(() {
+            _canUnlockNextDay = true;
+            _timeRemaining = Duration.zero;
+          });
+          // Re-sync with server to confirm unlock
+          _syncWithServerAndUnlockNextDay();
+        } else {
+          setState(() {
+            _timeRemaining = _timeRemaining - Duration(seconds: 1);
+          });
+        }
+      });
+    }
+  }
+
   String get _formattedTimeRemaining {
     final hours = _timeRemaining.inHours;
     final minutes = _timeRemaining.inMinutes.remainder(60);
     final seconds = _timeRemaining.inSeconds.remainder(60);
     
-    return '$hours:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+    return '${hours}h ${minutes.toString().padLeft(2, '0')}m ${seconds.toString().padLeft(2, '0')}s';
   }
 
   // Create fallback content for testing/debugging
@@ -271,7 +409,10 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       _buildStickerCounter(),
-                      if (_timeRemaining.inSeconds > 0)
+                      // Only show timer if we have completed a day or timer is running
+                      if (_userProgress != null && ((_userProgress!.lastCompletedDay > 0) || 
+                          _timeRemaining.inSeconds > 0 || 
+                          (_userStickers != null && _userStickers!.stickers > 0)))
                         _buildNextDayTimer(),
                     ],
                   ),
@@ -410,42 +551,80 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final isDarkMode = themeProvider.isDarkMode;
     
+    // Check if we have any stickers (completed days)
+    final hasCompletedAnyDay = (_userProgress?.lastCompletedDay ?? 0) > 0 || 
+                              (_userStickers != null && _userStickers!.stickers > 0);
+    
+    // Determine the next day to unlock
+    int nextDayNumber;
+    if (_userStickers != null && _userStickers!.stickers > 0) {
+      // If we have stickers, use that count + 1 as the next day
+      nextDayNumber = _userStickers!.stickers + 1;
+    } else {
+      // Otherwise fall back to the lastCompletedDay + 1
+      nextDayNumber = (_userProgress?.lastCompletedDay ?? 0) + 1;
+    }
+    
+    // If nextDayNumber is still 1, make it 2 if we have stickers
+    if (nextDayNumber == 1 && _userStickers != null && _userStickers!.stickers > 0) {
+      nextDayNumber = 2;
+    }
+    
+    final canUnlock = _userProgress?.canUnlockNextDay() ?? false;
+    
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: isDarkMode ? Colors.grey[800] : Colors.grey[200],
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: Colors.orange,
+          color: canUnlock ? Colors.green : Colors.orange,
           width: 2,
         ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(
-            Icons.timer,
-            color: Colors.orange,
+          Icon(
+            canUnlock ? Icons.check_circle : Icons.timer,
+            color: canUnlock ? Colors.green : Colors.orange,
             size: 20,
           ),
           const SizedBox(width: 8),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Next Day Unlocks In:',
+              Text(
+                hasCompletedAnyDay 
+                  ? 'Day $nextDayNumber Unlocks In:' 
+                  : 'Complete Day 1 First',
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              Text(
-                _formattedTimeRemaining,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.orange,
-                ),
+              Row(
+                children: [
+                  Text(
+                    canUnlock 
+                      ? 'Ready to unlock!' 
+                      : _formattedTimeRemaining,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: canUnlock ? Colors.green : Colors.orange,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  GestureDetector(
+                    onTap: () => _syncWithServerAndUnlockNextDay(),
+                    child: Icon(
+                      Icons.sync,
+                      size: 14,
+                      color: Colors.blue,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

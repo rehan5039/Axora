@@ -5,14 +5,31 @@ service cloud.firestore {
     function isAdmin() {
       return exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
+    
+    // Helper function to calculate time difference in seconds
+    function timeDifferenceInSeconds(timeValue) {
+      return request.time.toMillis() / 1000 - timeValue.seconds;
+    }
+    
+    // Helper function to check if 24 hours (86400 seconds) have passed
+    function has24HoursPassed(timeValue) {
+      return timeDifferenceInSeconds(timeValue) >= 86400;
+    }
 
     // User authentication rules
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
+    // User profiles with subcollections for tracking completed content
     match /user_profiles/{userId} {
+      // Allow read/write to the main document
       allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      // Allow read/write to all subcollections (completed_articles, completed_audios, etc.)
+      match /{subcollection}/{document} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
     }
 
     // Admin collection
@@ -27,28 +44,43 @@ service cloud.firestore {
       allow write: if request.auth != null && isAdmin();
     }
     
-    // Meditation progress with email field
+    // Meditation progress with timer enforcement
     match /meditation_progress/{userId} {
-      allow read, write: if request.auth != null && (
+      // Allow read for the user's own document or admins
+      allow read: if request.auth != null && (
         request.auth.uid == userId || isAdmin()
       );
       
-      // Ensure email field is included
-      match /{document=**} {
-        allow write: if request.resource.data.email == request.auth.token.email;
-      }
+      // Allow initial creation of progress documents without restrictions
+      allow create: if request.auth != null && request.auth.uid == userId;
+      
+      // For updates, enforce the timer rules but ensure anonymous users can update
+      allow update: if request.auth != null && (
+        request.auth.uid == userId || isAdmin()
+      ) && (
+        // Always allow admins to update
+        isAdmin() ||
+        // Users can always update fields other than currentDay
+        !("currentDay" in request.resource.data && request.resource.data.currentDay > resource.data.currentDay) ||
+        // Users can only increment currentDay if 24 hours have passed
+        has24HoursPassed(resource.data.lastCompletedAt)
+      );
     }
     
-    // Meditation stickers with email field
+    // Meditation stickers collection
     match /meditation_stickers/{userId} {
-      allow read, write: if request.auth != null && (
+      // Allow read for the user's own document or admins
+      allow read: if request.auth != null && (
         request.auth.uid == userId || isAdmin()
       );
       
-      // Ensure email field is included
-      match /{document=**} {
-        allow write: if request.resource.data.email == request.auth.token.email;
-      }
+      // Allow initial creation of sticker documents without restrictions
+      allow create: if request.auth != null && request.auth.uid == userId;
+      
+      // Allow updates with basic validation
+      allow update: if request.auth != null && (
+        request.auth.uid == userId || isAdmin()
+      );
     }
   }
 } 
