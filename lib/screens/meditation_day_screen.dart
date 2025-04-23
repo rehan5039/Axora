@@ -469,7 +469,7 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
                   SizedBox(height: 4),
                   Text(
                     widget.content.day < 30
-                        ? 'Day ${widget.content.day + 1} will be unlocked in 24 hours.'
+                        ? 'Day ${widget.content.day + 1} will be unlocked after a 24-hour countdown.'
                         : 'You\'ve completed the entire meditation journey!',
                     textAlign: TextAlign.center,
                     style: TextStyle(

@@ -96,7 +96,7 @@ class UserProgress {
   // Get formatted string of time remaining until next day unlocks
   String getFormattedTimeRemaining() {
     final totalSeconds = getSecondsUntilNextDayUnlocks();
-    if (totalSeconds <= 0) return "Ready to unlock";
+    if (totalSeconds <= 0) return "00h 00m 00s";
     
     final hours = totalSeconds ~/ 3600;
     final minutes = (totalSeconds % 3600) ~/ 60;

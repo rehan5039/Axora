@@ -223,36 +223,30 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
       final now = DateTime.now();
       if (_lastCompletedAt != null && (hasCompletedBasedOnProgress || hasCompletedBasedOnStickers)) {
         final difference = now.difference(_lastCompletedAt!);
-        final hoursPassed = difference.inHours;
         
-        print('Hours passed since last completion: $hoursPassed');
-        
-        // Check if 24 hours have passed since last completion
+        // Even if 24 hours have passed, we still want to show a countdown initially
         if (difference.inHours >= 24) {
-          print('24 hours have passed. User can unlock next day.');
+          // Get or update the server unlock time
+          final serverUnlockTime = await _meditationService.getNextDayUnlockTime();
+          
+          // Only update UI to show unlocked if auto-unlock is implemented
           _canUnlockNextDay = true;
-          _unlockTimer?.cancel();
+          // Show 00h 00m 00s
           _timeRemaining = Duration.zero;
         } else {
-          // Update the timer
+          // Update the timer - remaining time until 24 hours
           _canUnlockNextDay = false;
           _timeRemaining = Duration(hours: 24) - difference;
           print('Time remaining: ${_timeRemaining.inHours}h ${_timeRemaining.inMinutes % 60}m');
-          
-          // Start or restart the timer
-          _updateUnlockTimer();
         }
+        
+        // Start or restart the timer
+        _updateUnlockTimer();
       } else if (_currentDay == 1 && !hasCompletedBasedOnStickers) {
         // First day, no waiting required
         _canUnlockNextDay = true;
         _timeRemaining = Duration.zero;
         _unlockTimer?.cancel();
-      } else {
-        // No last completion time but not the first day - this is an error state
-        print('WARNING: No last completion time found for day $_currentDay');
-        _canUnlockNextDay = false;
-        _timeRemaining = Duration(hours: 24); // Default to full waiting period
-        _updateUnlockTimer();
       }
       
       // Make sure we always update the UI after syncing
@@ -578,7 +572,7 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
         color: isDarkMode ? Colors.grey[800] : Colors.grey[200],
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: canUnlock ? Colors.green : Colors.orange,
+          color: Colors.orange,
           width: 2,
         ),
       ),
@@ -586,8 +580,8 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            canUnlock ? Icons.check_circle : Icons.timer,
-            color: canUnlock ? Colors.green : Colors.orange,
+            Icons.timer,
+            color: Colors.orange,
             size: 20,
           ),
           const SizedBox(width: 8),
@@ -606,13 +600,11 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
               Row(
                 children: [
                   Text(
-                    canUnlock 
-                      ? 'Ready to unlock!' 
-                      : _formattedTimeRemaining,
+                    _formattedTimeRemaining,
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
-                      color: canUnlock ? Colors.green : Colors.orange,
+                      color: Colors.orange,
                     ),
                   ),
                   const SizedBox(width: 4),

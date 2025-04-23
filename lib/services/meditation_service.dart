@@ -934,7 +934,7 @@ class MeditationService {
   // Get formatted time remaining until next day unlocks
   Future<String> getFormattedTimeRemaining() async {
     final progress = await getUserProgress();
-    if (progress == null) return "Ready to unlock";
+    if (progress == null) return "00h 00m 00s";
     
     return progress.getFormattedTimeRemaining();
   }
