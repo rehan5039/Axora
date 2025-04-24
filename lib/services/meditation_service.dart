@@ -173,7 +173,12 @@ class MeditationService {
       print('Adding new meditation content to Firestore...');
       print('Collection path: ${_contentCollection.path}');
       
-      final docRef = await _contentCollection.add({
+      // Create a consistent document ID format: "Day-X"
+      final docId = 'Day-$day';
+      print('Using document ID: $docId');
+      
+      // Use set instead of add to specify the document ID
+      await _contentCollection.doc(docId).set({
         'day': day,
         'title': title,
         'article': article.toMap(),
@@ -183,7 +188,7 @@ class MeditationService {
         'isActive': true,
       });
       
-      print('Document added successfully with ID: ${docRef.id}');
+      print('Document added successfully with ID: $docId');
       return true;
     } catch (e) {
       print('Error adding meditation content: $e');

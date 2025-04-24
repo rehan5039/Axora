@@ -28,6 +28,7 @@ class _AdminMeditationScreenState extends State<AdminMeditationScreen> {
   final _audioTitleController = TextEditingController();
   final _audioUrlController = TextEditingController();
   final _durationController = TextEditingController();
+  final _audioScriptController = TextEditingController();
   bool _isActive = true;
   
   @override
@@ -45,6 +46,7 @@ class _AdminMeditationScreenState extends State<AdminMeditationScreen> {
     _audioTitleController.dispose();
     _audioUrlController.dispose();
     _durationController.dispose();
+    _audioScriptController.dispose();
     super.dispose();
   }
   
@@ -112,6 +114,7 @@ class _AdminMeditationScreenState extends State<AdminMeditationScreen> {
     _audioTitleController.clear();
     _audioUrlController.clear();
     _durationController.clear();
+    _audioScriptController.clear();
     _isActive = true;
   }
   
@@ -135,6 +138,7 @@ class _AdminMeditationScreenState extends State<AdminMeditationScreen> {
         title: _audioTitleController.text,
         url: _audioUrlController.text,
         durationInSeconds: int.parse(_durationController.text),
+        audioScript: _audioScriptController.text,
       );
       
       print('Saving meditation content:');
@@ -234,6 +238,7 @@ class _AdminMeditationScreenState extends State<AdminMeditationScreen> {
                 _buildDetailRow('Title', audio.title),
                 _buildDetailRow('URL', audio.url),
                 _buildDetailRow('Duration', '${audio.durationInSeconds} seconds'),
+                _buildDetailRow('Audio Script', audio.audioScript.isNotEmpty ? audio.audioScript : 'No script available'),
               ]),
               const SizedBox(height: 24),
               Center(
@@ -269,6 +274,7 @@ class _AdminMeditationScreenState extends State<AdminMeditationScreen> {
     _audioTitleController.text = audio.title;
     _audioUrlController.text = audio.url;
     _durationController.text = audio.durationInSeconds.toString();
+    _audioScriptController.text = audio.audioScript;
     
     _isActive = content.isActive;
     
@@ -456,6 +462,19 @@ class _AdminMeditationScreenState extends State<AdminMeditationScreen> {
                       ),
                       const SizedBox(height: 16),
                       
+                      // Add Audio Script field
+                      TextFormField(
+                        controller: _audioScriptController,
+                        decoration: const InputDecoration(
+                          labelText: 'Audio Script',
+                          hintText: 'Enter the meditation script for this audio',
+                          alignLabelWithHint: true,
+                        ),
+                        maxLines: 8,
+                        minLines: 3,
+                      ),
+                      const SizedBox(height: 16),
+                      
                       // Active status
                       SwitchListTile(
                         title: const Text('Active'),
@@ -516,6 +535,7 @@ class _AdminMeditationScreenState extends State<AdminMeditationScreen> {
         title: _audioTitleController.text,
         url: _audioUrlController.text,
         durationInSeconds: int.parse(_durationController.text),
+        audioScript: _audioScriptController.text,
       );
       
       final success = await _meditationService.updateMeditationContent(
@@ -1016,6 +1036,19 @@ class _AdminMeditationScreenState extends State<AdminMeditationScreen> {
                     }
                     return null;
                   },
+                ),
+                const SizedBox(height: 16),
+                
+                // Add Audio Script field
+                TextFormField(
+                  controller: _audioScriptController,
+                  decoration: const InputDecoration(
+                    labelText: 'Audio Script',
+                    hintText: 'Enter the meditation script for this audio',
+                    alignLabelWithHint: true,
+                  ),
+                  maxLines: 8,
+                  minLines: 3,
                 ),
                 const SizedBox(height: 16),
                 

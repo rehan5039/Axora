@@ -142,7 +142,14 @@ class _MeditationTabState extends State<MeditationTab> {
             const SizedBox(height: 24),
             _QuickActionButton(
               label: 'Start a Quick Meditation',
-              onPressed: () {},
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const MeditationJourneyScreen(),
+                  ),
+                ).then((_) => _loadUserProgress());
+              },
             ),
             const SizedBox(height: 24),
             _SectionTitle(title: 'Your Meditation Journey'),
