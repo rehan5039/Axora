@@ -122,11 +122,13 @@ class AudioContent {
   final String title;
   final String url;
   final int durationInSeconds;
+  final String audioScript;
   
   AudioContent({
     required this.title,
     required this.url,
     required this.durationInSeconds,
+    this.audioScript = '',
   });
   
   factory AudioContent.fromMap(Map<String, dynamic> map) {
@@ -134,6 +136,7 @@ class AudioContent {
       title: map['title'] ?? '',
       url: map['url'] ?? '',
       durationInSeconds: map['durationInSeconds'] ?? 0,
+      audioScript: map['audio-script'] ?? '',
     );
   }
   
@@ -142,6 +145,7 @@ class AudioContent {
       'title': title,
       'url': url,
       'durationInSeconds': durationInSeconds,
+      'audio-script': audioScript,
     };
   }
 } 

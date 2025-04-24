@@ -635,6 +635,7 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
             audioUrl: audio.url,
             onComplete: _markAudioAsCompleted,
             isDarkMode: isDarkMode,
+            audioScript: audio.audioScript,
           ),
         ],
       ),

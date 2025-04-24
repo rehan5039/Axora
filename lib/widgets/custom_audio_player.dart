@@ -15,12 +15,14 @@ class CustomAudioPlayer extends StatefulWidget {
   final String audioUrl;
   final Function()? onComplete;
   final bool isDarkMode;
+  final String audioScript;
 
   const CustomAudioPlayer({
     super.key,
     required this.audioUrl,
     this.onComplete,
     required this.isDarkMode,
+    this.audioScript = '',
   });
 
   @override
@@ -276,6 +278,16 @@ class _CustomAudioPlayerState extends State<CustomAudioPlayer> with WidgetsBindi
                           ),
                           primaryColor: primaryColor,
                         ),
+                        
+                        // Add script icon if script is available
+                        if (widget.audioScript.isNotEmpty) ...[
+                          const SizedBox(width: 24),
+                          _buildControlButton(
+                            icon: Icons.description,
+                            onPressed: () => _showScriptDialog(context),
+                            primaryColor: primaryColor,
+                          ),
+                        ],
                       ],
                     ),
                   ],
@@ -302,6 +314,50 @@ class _CustomAudioPlayerState extends State<CustomAudioPlayer> with WidgetsBindi
       onPressed: onPressed,
       padding: EdgeInsets.zero,
       splashRadius: large ? 32 : 24,
+    );
+  }
+
+  void _showScriptDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          'Meditation Script',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: widget.isDarkMode ? Colors.white : Colors.black87,
+          ),
+        ),
+        content: Container(
+          width: double.maxFinite,
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.6,
+          ),
+          child: SingleChildScrollView(
+            child: Text(
+              widget.audioScript,
+              style: TextStyle(
+                fontSize: 16,
+                color: widget.isDarkMode ? Colors.white : Colors.black87,
+                height: 1.5,
+              ),
+            ),
+          ),
+        ),
+        backgroundColor: widget.isDarkMode ? Colors.grey[850] : Colors.white,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Close',
+              style: TextStyle(
+                color: widget.isDarkMode ? Colors.deepPurple : Colors.blue,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 } 

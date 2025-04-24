@@ -223,13 +223,19 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
         _userStickers = userStickers;
       });
       
+      // Check if the previous day was completed
+      final nextDay = (userStickers?.stickers ?? 0) + 1;
+      final isPreviousDayCompleted = userStickers?.hasStickerForDay(nextDay - 1) ?? false;
+      
       // Check if user has completed a day based on stickers but it's not reflected in progress
       final hasCompletedBasedOnStickers = (userStickers?.stickers ?? 0) > 0;
       final hasCompletedBasedOnProgress = meditationProgress.lastCompletedDay > 0;
       
       // Calculate time since last completion
       final now = DateTime.now();
-      if (_lastCompletedAt != null && (hasCompletedBasedOnProgress || hasCompletedBasedOnStickers)) {
+      if (_lastCompletedAt != null && 
+          (hasCompletedBasedOnProgress || hasCompletedBasedOnStickers) && 
+          isPreviousDayCompleted) {
         final difference = now.difference(_lastCompletedAt!);
         
         // Check if 24 hours have passed and if we need to unlock the next day
@@ -654,91 +660,173 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
       nextDayNumber = 2;
     }
     
-    final canUnlock = _userProgress?.canUnlockNextDay() ?? false;
-    final isTimeOver = _timeRemaining.inSeconds <= 0;
+    // Fix: Check if the previous day is actually completed (has a sticker)
+    final isPreviousDayCompleted = _userStickers?.hasStickerForDay(nextDayNumber - 1) ?? false;
     
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: isDarkMode ? Colors.grey[800] : Colors.grey[100],
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-        border: Border.all(
-          color: isTimeOver ? Colors.green : Colors.orange,
-          width: 2,
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            isTimeOver ? Icons.check_circle : Icons.timer,
+    final canUnlock = (_userProgress?.canUnlockNextDay() ?? false) && isPreviousDayCompleted;
+    final isTimeOver = _timeRemaining.inSeconds <= 0 && isPreviousDayCompleted;
+    
+    // Only show the timer if there is actually time remaining or if we've completed a day
+    if (!hasCompletedAnyDay || (hasCompletedAnyDay && !isTimeOver)) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: isDarkMode ? Colors.grey[800] : Colors.grey[100],
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+          border: Border.all(
             color: isTimeOver ? Colors.green : Colors.orange,
-            size: 24,
+            width: 2,
           ),
-          const SizedBox(width: 10),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                hasCompletedAnyDay 
-                  ? 'Day $nextDayNumber ${isTimeOver ? "Ready!" : "Unlocks In:"}' 
-                  : 'Complete Day 1 First',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isTimeOver ? Icons.check_circle : Icons.timer,
+              color: isTimeOver ? Colors.green : Colors.orange,
+              size: 24,
+            ),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  hasCompletedAnyDay && isPreviousDayCompleted
+                    ? 'Day $nextDayNumber ${isTimeOver ? "Ready!" : "Unlocks In:"}' 
+                    : 'Complete Day 1 First',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
-              Row(
-                children: [
-                  Text(
-                    _formattedTimeRemaining,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: isTimeOver ? Colors.green : Colors.orange,
+                Row(
+                  children: [
+                    Text(
+                      _formattedTimeRemaining,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: isTimeOver ? Colors.green : Colors.orange,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  GestureDetector(
-                    onTap: () {
-                      // Show a message to the user
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(isTimeOver 
-                            ? 'Refreshing to unlock Day $nextDayNumber...' 
-                            : 'Syncing time remaining...'),
-                          duration: const Duration(seconds: 2),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: () {
+                        // Show a message to the user
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(isTimeOver 
+                              ? 'Refreshing to unlock Day $nextDayNumber...' 
+                              : 'Syncing time remaining...'),
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                        _syncWithServerAndUnlockNextDay();
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
                         ),
-                      );
-                      _syncWithServerAndUnlockNextDay();
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Icon(
-                        isTimeOver ? Icons.refresh : Icons.sync,
-                        size: 16,
-                        color: Colors.blue,
+                        child: Icon(
+                          isTimeOver ? Icons.refresh : Icons.sync,
+                          size: 16,
+                          color: Colors.blue,
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    } else if (isPreviousDayCompleted) {
+      // If time is over and next day is ready, show a "ready" button
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: isDarkMode ? Colors.grey[800] : Colors.grey[100],
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+          border: Border.all(
+            color: Colors.green,
+            width: 2,
           ),
-        ],
-      ),
-    );
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.check_circle,
+              color: Colors.green,
+              size: 24,
+            ),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Day $nextDayNumber Ready!',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Row(
+                  children: [
+                    Text(
+                      'Tap to start',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: () {
+                        _syncWithServerAndUnlockNextDay();
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Icon(
+                          Icons.refresh,
+                          size: 16,
+                          color: Colors.blue,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    } else {
+      // If previous day not completed, don't show anything
+      return Container();
+    }
   }
 
   Widget _buildDayCard(MeditationContent content) {
@@ -747,8 +835,22 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
     final currentDay = _userProgress?.currentDay ?? 1;
     final isCompleted = _userStickers?.hasStickerForDay(content.day) ?? false;
     final isUnlocked = content.day <= currentDay;
-    final isCurrentDay = content.day == currentDay;
-    final isReadyToUnlock = content.day == currentDay + 1 && _canUnlockNextDay;
+    
+    // Fix: Only consider a day ready to unlock if the previous day is completed
+    // Check if the user has a sticker for the previous day (meaning they actually completed it)
+    final isPreviousDayCompleted = _userStickers?.hasStickerForDay(content.day - 1) ?? false;
+    
+    // Fix: Only mark current day if it's actually unlocked
+    final isCurrentDay = content.day == currentDay && isUnlocked;
+    
+    // Fix: A day is ready to unlock ONLY if:
+    // 1. It's the next day after current day
+    // 2. The previous day has been completed (has a sticker)
+    // 3. The unlock timer has expired
+    final isReadyToUnlock = content.day == currentDay + 1 && 
+                          isPreviousDayCompleted && 
+                          _canUnlockNextDay && 
+                          _timeRemaining.inSeconds <= 0;
     
     final cardColor = isCompleted
         ? (isDarkMode ? Colors.green[900] : Colors.green[100])
@@ -785,7 +887,7 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
                       ),
                     );
                   }
-                : content.day == currentDay + 1 && _canUnlockNextDay
+                : content.day == currentDay + 1 && isPreviousDayCompleted && _canUnlockNextDay
                     ? () async {
                         // Try to unlock this day before opening
                         ScaffoldMessenger.of(context).showSnackBar(
