@@ -97,16 +97,19 @@ class MeditationContent {
 class ArticleContent {
   final String title;
   final String content;
+  final String buttonText;
   
   ArticleContent({
     required this.title,
     required this.content,
+    this.buttonText = 'Mark as Read',
   });
   
   factory ArticleContent.fromMap(Map<String, dynamic> map) {
     return ArticleContent(
       title: map['title'] ?? '',
       content: map['content'] ?? '',
+      buttonText: map['button'] ?? 'Mark as Read',
     );
   }
   
@@ -114,6 +117,7 @@ class ArticleContent {
     return {
       'title': title,
       'content': content,
+      'button': buttonText,
     };
   }
 }

@@ -576,9 +576,9 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
                   backgroundColor: isDarkMode ? Colors.deepPurple : Colors.blue,
                   padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                 ),
-                child: const Text(
-                  'Mark as Read',
-                  style: TextStyle(
+                child: Text(
+                  article.buttonText,
+                  style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),

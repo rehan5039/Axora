@@ -25,6 +25,7 @@ class _AdminMeditationScreenState extends State<AdminMeditationScreen> {
   final _titleController = TextEditingController();
   final _articleTitleController = TextEditingController();
   final _articleContentController = TextEditingController();
+  final _articleButtonController = TextEditingController();
   final _audioTitleController = TextEditingController();
   final _audioUrlController = TextEditingController();
   final _durationController = TextEditingController();
@@ -43,6 +44,7 @@ class _AdminMeditationScreenState extends State<AdminMeditationScreen> {
     _titleController.dispose();
     _articleTitleController.dispose();
     _articleContentController.dispose();
+    _articleButtonController.dispose();
     _audioTitleController.dispose();
     _audioUrlController.dispose();
     _durationController.dispose();
@@ -111,6 +113,7 @@ class _AdminMeditationScreenState extends State<AdminMeditationScreen> {
     _titleController.clear();
     _articleTitleController.clear();
     _articleContentController.clear();
+    _articleButtonController.clear();
     _audioTitleController.clear();
     _audioUrlController.clear();
     _durationController.clear();
@@ -132,6 +135,9 @@ class _AdminMeditationScreenState extends State<AdminMeditationScreen> {
       final article = ArticleContent(
         title: _articleTitleController.text,
         content: _articleContentController.text,
+        buttonText: _articleButtonController.text.isNotEmpty 
+            ? _articleButtonController.text 
+            : 'Mark as Read',
       );
       
       final audio = AudioContent(
@@ -232,6 +238,7 @@ class _AdminMeditationScreenState extends State<AdminMeditationScreen> {
               _buildDetailsSection('Article', [
                 _buildDetailRow('Title', article.title),
                 _buildDetailRow('Content', article.content),
+                _buildDetailRow('Button Text', article.buttonText),
               ]),
               const SizedBox(height: 16),
               _buildDetailsSection('Audio', [
@@ -269,6 +276,7 @@ class _AdminMeditationScreenState extends State<AdminMeditationScreen> {
     final article = ArticleContent.fromMap(content.article);
     _articleTitleController.text = article.title;
     _articleContentController.text = article.content;
+    _articleButtonController.text = article.buttonText;
     
     final audio = AudioContent.fromMap(content.audio);
     _audioTitleController.text = audio.title;
@@ -401,6 +409,14 @@ class _AdminMeditationScreenState extends State<AdminMeditationScreen> {
                           return null;
                         },
                       ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _articleButtonController,
+                        decoration: const InputDecoration(
+                          labelText: 'Read Button Text',
+                          hintText: 'Enter text for the "Mark as Read" button',
+                        ),
+                      ),
                       const SizedBox(height: 16),
                       
                       // Audio
@@ -526,9 +542,15 @@ class _AdminMeditationScreenState extends State<AdminMeditationScreen> {
     });
     
     try {
+      final day = int.parse(_dayController.text);
+      final title = _titleController.text;
+      
       final article = ArticleContent(
         title: _articleTitleController.text,
         content: _articleContentController.text,
+        buttonText: _articleButtonController.text.isNotEmpty 
+            ? _articleButtonController.text 
+            : 'Mark as Read',
       );
       
       final audio = AudioContent(
@@ -540,7 +562,7 @@ class _AdminMeditationScreenState extends State<AdminMeditationScreen> {
       
       final success = await _meditationService.updateMeditationContent(
         contentId: contentId,
-        title: _titleController.text,
+        title: title,
         article: article,
         audio: audio,
         isActive: _isActive,
@@ -977,6 +999,14 @@ class _AdminMeditationScreenState extends State<AdminMeditationScreen> {
                     }
                     return null;
                   },
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _articleButtonController,
+                  decoration: const InputDecoration(
+                    labelText: 'Read Button Text',
+                    hintText: 'Enter text for the "Mark as Read" button',
+                  ),
                 ),
                 const SizedBox(height: 16),
                 
