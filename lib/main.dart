@@ -9,11 +9,13 @@ import 'package:axora/screens/signup_screen.dart';
 import 'package:axora/screens/forgot_password_screen.dart';
 import 'package:axora/screens/home_screen.dart';
 import 'package:axora/providers/theme_provider.dart';
+import 'package:axora/providers/notification_provider.dart';
 import 'package:axora/widgets/theme_showcase.dart';
 import 'package:axora/screens/meditation_journey_screen.dart';
 import 'package:axora/screens/admin_meditation_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:axora/services/meditation_service.dart';
+import 'package:axora/services/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,14 +37,22 @@ void main() async {
       debugPrint('Failed to configure Firebase Realtime Database URL: $e');
       // Continue app initialization even if this fails
     }
+    
+    // Initialize notification service
+    await NotificationService().init();
+    debugPrint('Notification service initialized successfully');
+    
   } catch (e) {
     debugPrint('Error initializing Firebase: $e');
     // Continue with app initialization even if Firebase initialization fails
   }
   
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => ThemeProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => NotificationProvider()),
+      ],
       child: const MyApp(),
     ),
   );

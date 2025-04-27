@@ -7,6 +7,7 @@ import 'package:axora/widgets/custom_audio_player.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:axora/services/stats_service.dart';
 
 class MeditationDayScreen extends StatefulWidget {
   final MeditationContent content;
@@ -146,6 +147,33 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
             print('User now has ${stickers?.stickers ?? 0} stickers');
             print('Sticker for day ${widget.content.day} exists: $stickerAwarded');
             
+            // Update streak count when a day is completed and sticker awarded
+            if (stickerAwarded) {
+              try {
+                final statsService = StatsService();
+                // First get existing stats
+                final userStats = await statsService.getUserStats();
+                if (userStats != null) {
+                  // Increment streak by 1 if this is a new day completion
+                  final newStreak = userStats.currentStreak + 1;
+                  final newLongestStreak = newStreak > userStats.longestStreak 
+                      ? newStreak 
+                      : userStats.longestStreak;
+                  
+                  // Update the streak stats
+                  await statsService.updateStreakForDayCompletion(
+                    newStreak, 
+                    newLongestStreak,
+                    dayNumber: widget.content.day
+                  );
+                  print('Updated user streak to $newStreak (day ${widget.content.day} completion)');
+                }
+              } catch (e) {
+                print('Error updating streak for day completion: $e');
+                // Don't block the main flow if streak update fails
+              }
+            }
+            
             // If sticker was not awarded, try to directly add it
             if (!stickerAwarded && stickers != null) {
               print('WARNING: Sticker was not awarded automatically. Trying to add it directly...');
@@ -283,6 +311,22 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
     try {
       print('Marking audio as completed for content ID: ${widget.content.id}');
       await _meditationService.markAudioAsCompleted(widget.content.id);
+      
+      // Update statistics - add meditation minutes
+      final audioContent = AudioContent.fromMap(widget.content.audio);
+      final durationInMinutes = (audioContent.durationInSeconds / 60).ceil(); // Round up to nearest minute
+      
+      try {
+        final statsService = StatsService();
+        await statsService.updateSessionCompletion(
+          durationInMinutes,
+          contentId: widget.content.id,
+        );
+        print('Updated meditation statistics: added $durationInMinutes minutes');
+      } catch (e) {
+        print('Error updating meditation statistics: $e');
+        // Don't block the main flow if statistics update fails
+      }
       
       // Auto-switch to article tab after audio completion
       if (!_isArticleCompleted && !_isAutoNavigating) {

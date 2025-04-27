@@ -82,5 +82,21 @@ service cloud.firestore {
         request.auth.uid == userId || isAdmin()
       );
     }
+    
+    // User statistics collection
+    match /user_stats/{userId} {
+      // Allow read for the user's own document or admins
+      allow read: if request.auth != null && (
+        request.auth.uid == userId || isAdmin()
+      );
+      
+      // Allow initial creation of statistics documents
+      allow create: if request.auth != null && request.auth.uid == userId;
+      
+      // Allow updates for user's own document or admins
+      allow update: if request.auth != null && (
+        request.auth.uid == userId || isAdmin()
+      );
+    }
   }
 } 

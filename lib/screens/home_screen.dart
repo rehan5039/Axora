@@ -9,6 +9,9 @@ import 'package:axora/widgets/theme_showcase.dart';
 import 'package:axora/screens/meditation_journey_screen.dart';
 import 'package:axora/services/meditation_service.dart';
 import 'package:axora/models/user_progress.dart';
+import 'package:axora/providers/notification_provider.dart';
+import 'package:axora/services/stats_service.dart';
+import 'package:axora/models/user_stats.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -36,6 +39,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
+    final notificationProvider = Provider.of<NotificationProvider>(context);
     final isDarkMode = themeProvider.isDarkMode;
     
     return Scaffold(
@@ -47,11 +51,25 @@ class _HomeScreenState extends State<HomeScreen> {
           const ThemeToggleButton(),
           IconButton(
             icon: Icon(
-              Icons.notifications_outlined, 
+              notificationProvider.notificationsEnabled 
+                  ? Icons.notifications_active
+                  : Icons.notifications_off,
               color: isDarkMode ? AppColors.darkText : AppColors.lightText,
             ),
             onPressed: () {
-              // Handle notifications
+              notificationProvider.toggleNotifications();
+              
+              // Show confirmation snackbar
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    notificationProvider.notificationsEnabled
+                        ? 'Notifications enabled'
+                        : 'Notifications disabled'
+                  ),
+                  duration: const Duration(seconds: 2),
+                ),
+              );
             },
           ),
         ],
@@ -585,8 +603,56 @@ class _JourneyCard extends StatelessWidget {
   }
 }
 
-class StatisticsTab extends StatelessWidget {
+class StatisticsTab extends StatefulWidget {
   const StatisticsTab({super.key});
+
+  @override
+  State<StatisticsTab> createState() => _StatisticsTabState();
+}
+
+class _StatisticsTabState extends State<StatisticsTab> {
+  final _statsService = StatsService();
+  UserStats? _userStats;
+  bool _isLoading = true;
+  bool _isRefreshing = false;
+  
+  @override
+  void initState() {
+    super.initState();
+    _loadStats();
+  }
+  
+  Future<void> _loadStats() async {
+    if (_isRefreshing) return;
+    
+    setState(() {
+      _isLoading = true;
+      _isRefreshing = true;
+    });
+    
+    try {
+      // Delay slightly to allow Firebase operations to complete
+      await Future.delayed(const Duration(milliseconds: 300));
+      
+      final stats = await _statsService.getUserStats();
+      
+      if (mounted) {
+        setState(() {
+          _userStats = stats;
+          _isLoading = false;
+          _isRefreshing = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading user statistics: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isRefreshing = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -595,22 +661,58 @@ class StatisticsTab extends StatelessWidget {
     final textStyle = isDarkMode ? AppStyles.bodyTextDark : AppStyles.bodyTextLight;
     final headingStyle = isDarkMode ? AppStyles.heading2Dark : AppStyles.heading2Light;
     
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Progress', style: headingStyle),
-            const SizedBox(height: 24),
-            _StatItem(label: 'Current Streak', value: '7'),
-            const SizedBox(height: 16),
-            _StatItem(label: 'Total Minutes', value: '65'),
-            const SizedBox(height: 24),
-            Text('Badges', style: headingStyle),
-            const SizedBox(height: 16),
-            const _BadgeItem(),
-          ],
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    
+    return RefreshIndicator(
+      onRefresh: _loadStats,
+      child: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Progress', style: headingStyle),
+                  IconButton(
+                    icon: Icon(
+                      Icons.refresh,
+                      color: isDarkMode ? Colors.white70 : Colors.black54,
+                    ),
+                    onPressed: _isRefreshing ? null : _loadStats,
+                    tooltip: 'Refresh stats',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              _StatItem(
+                label: 'Current Streak', 
+                value: '${_userStats?.currentStreak ?? 0}',
+              ),
+              const SizedBox(height: 16),
+              _StatItem(
+                label: 'Total Minutes', 
+                value: '${_userStats?.totalMinutes ?? 0}',
+              ),
+              const SizedBox(height: 16),
+              _StatItem(
+                label: 'Sessions Completed', 
+                value: '${_userStats?.sessionsCompleted ?? 0}',
+              ),
+              const SizedBox(height: 16),
+              _StatItem(
+                label: 'Longest Streak', 
+                value: '${_userStats?.longestStreak ?? 0}',
+              ),
+              const SizedBox(height: 24),
+              Text('Badges', style: headingStyle),
+              const SizedBox(height: 16),
+              const _BadgeItem(),
+            ],
+          ),
         ),
       ),
     );
@@ -816,7 +918,7 @@ class _ProfileTabState extends State<ProfileTab> {
               style: headingStyle,
             ),
             Text(
-              user?.email ?? 'guest@example.com',
+              user?.isAnonymous == true ? '' : (user?.email ?? ''),
               style: textStyle.copyWith(
                 color: isDarkMode ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
               ),
