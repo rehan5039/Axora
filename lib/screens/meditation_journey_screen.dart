@@ -10,6 +10,7 @@ import 'package:axora/providers/theme_provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:axora/services/notification_service.dart';
+import 'package:axora/widgets/meditation_day_map.dart';
 
 class MeditationJourneyScreen extends StatefulWidget {
   const MeditationJourneyScreen({super.key});
@@ -557,90 +558,120 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
       );
     }
 
-    return RefreshIndicator(
-      onRefresh: _loadData,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Meditation Journey'),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: _loadData,
-            ),
-          ],
-        ),
-        body: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Meditation Journey',
-                    style: headingStyle,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Complete each day to unlock the next one. Read the article and listen to the meditation to earn stickers.',
-                    style: textStyle,
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _buildStickerCounter(),
-                      // Only show timer if we have completed a day or timer is running
-                      if (_userProgress != null && ((_userProgress!.lastCompletedDay > 0) || 
-                          _timeRemaining.inSeconds > 0 || 
-                          (_userStickers != null && _userStickers!.stickers > 0)))
-                        _buildNextDayTimer(),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: _meditationContents.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          'No meditation content available yet.\nCheck back soon!',
-                          textAlign: TextAlign.center,
-                          style: textStyle,
-                        ),
-                        const SizedBox(height: 24),
-                        ElevatedButton.icon(
-                          onPressed: () {
-                            _loadData();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Refreshing meditation content...'),
-                                duration: Duration(seconds: 2),
-                              ),
-                            );
-                          },
-                          icon: const Icon(Icons.refresh),
-                          label: const Text('Retry Loading Content'),
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Meditation Journey'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadData,
+          ),
+        ],
+      ),
+      body: RefreshIndicator(
+        onRefresh: _loadData,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header and journey map section
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Meditation Journey',
+                      style: headingStyle,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Complete each day to unlock the next one. Read the article and listen to the meditation to earn stickers.',
+                      style: textStyle,
+                    ),
+                    
+                    // Add the day map widget here
+                    MeditationDayMap(
+                      userProgress: _userProgress,
+                      userStickers: _userStickers,
+                      isDarkMode: isDarkMode,
+                      onDayTap: (day) {
+                        // Find the content for the tapped day
+                        final content = _meditationContents.firstWhere(
+                          (content) => content.day == day,
+                          orElse: () => _meditationContents.first,
+                        );
+                        
+                        // Navigate to the day screen
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => MeditationDayScreen(
+                              content: content,
+                              onComplete: _loadData,
+                            ),
                           ),
-                        ),
+                        );
+                      },
+                    ),
+                    
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _buildStickerCounter(),
+                        // Only show timer if we have completed a day or timer is running
+                        if (_userProgress != null && ((_userProgress!.lastCompletedDay > 0) || 
+                            _timeRemaining.inSeconds > 0 || 
+                            (_userStickers != null && _userStickers!.stickers > 0)))
+                          _buildNextDayTimer(),
                       ],
                     ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _meditationContents.length,
-                    itemBuilder: (context, index) {
-                      final content = _meditationContents[index];
-                      return _buildDayCard(content);
-                    },
-                  ),
-            ),
-          ],
+                  ],
+                ),
+              ),
+              
+              // List of meditation cards
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: _meditationContents.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            'No meditation content available yet.\nCheck back soon!',
+                            textAlign: TextAlign.center,
+                            style: textStyle,
+                          ),
+                          const SizedBox(height: 24),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              _loadData();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Refreshing meditation content...'),
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Retry Loading Content'),
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : Column(
+                      children: _meditationContents.map((content) => _buildDayCard(content)).toList(),
+                    ),
+              ),
+              // Add padding at the bottom for better scrolling
+              const SizedBox(height: 24),
+            ],
+          ),
         ),
       ),
     );
