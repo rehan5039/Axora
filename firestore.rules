@@ -18,24 +18,46 @@ service cloud.firestore {
 
     // User authentication rules
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      // Allow users to read/write their own data, and admins to read all users' data
+      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      // Allow users to update their own profile, and admins to update or delete any user
+      allow write, delete: if request.auth != null && (request.auth.uid == userId || isAdmin());
     }
 
     // User profiles with subcollections for tracking completed content
     match /user_profiles/{userId} {
-      // Allow read/write to the main document
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      // Allow read/write to the main document for user or admin
+      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      // Explicitly allow deletion of any user profile by admin
+      allow delete: if request.auth != null && isAdmin();
+      allow write: if request.auth != null && (request.auth.uid == userId || isAdmin());
       
-      // Allow read/write to all subcollections (completed_articles, completed_audios, etc.)
+      // Allow read/write to all subcollections for user or admin
       match /{subcollection}/{document} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+        // Explicitly allow deletion of any subcollection document by admin
+        allow delete: if request.auth != null && isAdmin();
+        allow write: if request.auth != null && (request.auth.uid == userId || isAdmin());
+        
+        // Add explicit permission for nested subcollections
+        match /{nestedCollection}/{nestedDoc} {
+          allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+          allow write, delete: if request.auth != null && (request.auth.uid == userId || isAdmin());
+        }
       }
     }
 
     // Admin collection
     match /admins/{adminId} {
       allow read: if request.auth != null;
-      allow write: if request.auth != null && isAdmin();
+      // Only existing admins can add or remove admin privileges
+      allow write, delete: if request.auth != null && isAdmin();
+    }
+
+    // User management collection for admin operations
+    match /user_management/{document=**} {
+      allow read: if request.auth != null && isAdmin();
+      allow write, delete: if request.auth != null && isAdmin();
     }
 
     // Meditation content rules - only admins can write
@@ -43,7 +65,7 @@ service cloud.firestore {
       // Allow everyone to read meditation content, but only active content is shown to non-admins by app logic
       allow read: if true;
       // Only admins can write to meditation content
-      allow write: if request.auth != null && isAdmin();
+      allow write, delete: if request.auth != null && isAdmin();
     }
     
     // Meditation progress with timer enforcement
@@ -57,6 +79,7 @@ service cloud.firestore {
       allow create: if request.auth != null && request.auth.uid == userId;
       
       // For updates, enforce the timer rules but ensure anonymous users can update
+      // Admins can delete any progress document
       allow update: if request.auth != null && (
         request.auth.uid == userId || isAdmin()
       ) && (
@@ -67,6 +90,8 @@ service cloud.firestore {
         // Users can only increment currentDay if 24 hours have passed
         has24HoursPassed(resource.data.lastCompletedAt)
       );
+      
+      allow delete: if request.auth != null && isAdmin();
     }
     
     // Meditation stickers collection
@@ -83,6 +108,9 @@ service cloud.firestore {
       allow update: if request.auth != null && (
         request.auth.uid == userId || isAdmin()
       );
+      
+      // Allow admins to delete stickers
+      allow delete: if request.auth != null && isAdmin();
     }
     
     // User statistics collection
@@ -99,6 +127,9 @@ service cloud.firestore {
       allow update: if request.auth != null && (
         request.auth.uid == userId || isAdmin()
       );
+      
+      // Allow admins to delete stats
+      allow delete: if request.auth != null && isAdmin();
     }
   }
 } 

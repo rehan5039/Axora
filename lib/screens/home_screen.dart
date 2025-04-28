@@ -943,9 +943,9 @@ class _ProfileTabState extends State<ProfileTab> {
             if (_isAdmin) // Only show admin options to admins
               _ProfileMenuItem(
                 icon: Icons.admin_panel_settings,
-                title: 'Manage Meditation Content',
+                title: 'Admin Dashboard',
                 onTap: () {
-                  Navigator.of(context).pushNamed('/admin-meditation');
+                  Navigator.of(context).pushNamed('/admin-dashboard');
                 },
               ),
             _ProfileMenuItem(

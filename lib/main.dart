@@ -13,6 +13,8 @@ import 'package:axora/providers/notification_provider.dart';
 import 'package:axora/widgets/theme_showcase.dart';
 import 'package:axora/screens/meditation_journey_screen.dart';
 import 'package:axora/screens/admin_meditation_screen.dart';
+import 'package:axora/screens/admin_dashboard_screen.dart';
+import 'package:axora/screens/admin_user_management_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:axora/services/meditation_service.dart';
 import 'package:axora/services/notification_service.dart';
@@ -138,6 +140,8 @@ class _MyAppState extends State<MyApp> {
         '/theme-showcase': (context) => const ThemeShowcase(),
         '/meditation-journey': (context) => const MeditationJourneyScreen(),
         '/admin-meditation': (context) => const AdminMeditationScreen(),
+        '/admin-dashboard': (context) => const AdminDashboardScreen(),
+        '/admin-user-management': (context) => const AdminUserManagementScreen(),
       },
     );
   }
