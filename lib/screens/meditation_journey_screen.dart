@@ -125,7 +125,7 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
       }
       
       // Load meditation content
-      var contents = await _meditationService.getAllMeditationContent();
+      var contents = await _meditationService.getAllMeditationContent(forAdmin: false);
       
       // Sort contents by day number
       contents.sort((a, b) => a.day.compareTo(b.day));
@@ -140,7 +140,7 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
         await _createFallbackContent();
         
         // Try loading again
-        contents = await _meditationService.getAllMeditationContent();
+        contents = await _meditationService.getAllMeditationContent(forAdmin: false);
         contents.sort((a, b) => a.day.compareTo(b.day));
         print('After fallback creation, loaded ${contents.length} items');
       }
@@ -451,6 +451,7 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
         article: article,
         audio: audio,
         documentId: 'Day-1', // Matches the document ID seen in Firebase console
+        isActive: true, // Ensure the fallback content is active
       );
       
       // If that fails, try the regular method
@@ -460,6 +461,7 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
           title: 'Breath Awareness',
           article: article,
           audio: audio,
+          isActive: true, // Ensure the fallback content is active
         );
       }
       

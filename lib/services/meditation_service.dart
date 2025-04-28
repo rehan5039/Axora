@@ -75,7 +75,7 @@ class MeditationService {
   }
   
   // Get all meditation content
-  Future<List<MeditationContent>> getAllMeditationContent() async {
+  Future<List<MeditationContent>> getAllMeditationContent({bool forAdmin = false}) async {
     try {
       print('Fetching all meditation content from Firestore...');
       print('Collection path: ${_contentCollection.path}');
@@ -133,7 +133,7 @@ class MeditationService {
       }
       
       // Convert documents to MeditationContent objects
-      final meditationContents = querySnapshot.docs
+      var meditationContents = querySnapshot.docs
           .where((doc) => doc.data().containsKey('day')) // Filter out invalid documents
           .map((doc) {
             try {
@@ -146,6 +146,14 @@ class MeditationService {
           .where((content) => content != null)
           .cast<MeditationContent>()
           .toList();
+      
+      // Filter out inactive content when not in admin mode
+      if (!forAdmin) {
+        meditationContents = meditationContents.where((content) => content.isActive).toList();
+        print('Filtered to ${meditationContents.length} active meditation content documents');
+      } else {
+        print('Admin mode: showing all content including inactive');
+      }
       
       print('Successfully parsed ${meditationContents.length} meditation content documents');
       return meditationContents;
@@ -162,6 +170,7 @@ class MeditationService {
     required String title,
     required ArticleContent article,
     required AudioContent audio,
+    bool isActive = true,
   }) async {
     try {
       // Check if user is admin
@@ -185,7 +194,7 @@ class MeditationService {
         'audio': audio.toMap(),
         'createdAt': FieldValue.serverTimestamp(),
         'createdBy': _userEmail,
-        'isActive': true,
+        'isActive': isActive,
       });
       
       print('Document added successfully with ID: $docId');
@@ -867,6 +876,7 @@ class MeditationService {
     required ArticleContent article,
     required AudioContent audio,
     String? documentId,
+    bool isActive = true,
   }) async {
     try {
       print('Adding new meditation content with explicit ID to Firestore...');
@@ -880,7 +890,7 @@ class MeditationService {
         'article': article.toMap(),
         'audio': audio.toMap(),
         'createdAt': FieldValue.serverTimestamp(),
-        'isActive': true,
+        'isActive': isActive,
       }, SetOptions(merge: true));
       
       print('Document set successfully with ID: $docId');
@@ -1250,6 +1260,32 @@ class MeditationService {
       print('Error force unlocking day: $e');
       print('Stack trace: ${StackTrace.current}');
       return false;
+    }
+  }
+
+  // Create fallback content for day 1 (for testing/debugging)
+  Future<void> _createFallbackContent() async {
+    try {
+      await addMeditationContent(
+        day: 1,
+        title: 'Welcome to Meditation',
+        article: ArticleContent(
+          title: 'Getting Started with Meditation',
+          content: 'This is a fallback content created because no content was found in the database. '
+                  'Please contact the administrator to add proper meditation content. '
+                  'In the meantime, you can use this simple meditation to get started. '
+                  'Find a comfortable position, close your eyes, and focus on your breath for a few minutes.',
+          buttonText: 'Mark as Read',
+        ),
+        audio: AudioContent(
+          title: 'Simple Breathing Meditation',
+          url: 'https://sample-videos.com/audio/mp3/crowd-cheering.mp3', // Sample public audio URL
+          durationInSeconds: 120,
+          audioScript: 'This is a simple breathing meditation. Breathe in... Breathe out...',
+        ),
+      );
+    } catch (e) {
+      print('Error creating fallback content: $e');
     }
   }
 } 

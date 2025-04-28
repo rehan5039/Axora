@@ -86,23 +86,31 @@ class _AdminMeditationScreenState extends State<AdminMeditationScreen> {
   }
   
   Future<void> _loadMeditationContents() async {
+    setState(() {
+      _isLoading = true;
+    });
+    
     try {
-      final contents = await _meditationService.getAllMeditationContent();
-      if (mounted) {
-        setState(() {
-          _meditationContents = contents;
-          _isLoading = false;
-        });
-      }
+      final contents = await _meditationService.getAllMeditationContent(forAdmin: true);
+      
+      // Sort by day number
+      contents.sort((a, b) => a.day.compareTo(b.day));
+      
+      setState(() {
+        _meditationContents = contents;
+        _isLoading = false;
+      });
     } catch (e) {
-      print('Error loading meditation contents: $e');
+      setState(() {
+        _isLoading = false;
+      });
+      
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-        
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading content: $e')),
+          SnackBar(
+            content: Text('Error loading content: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
