@@ -223,7 +223,7 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
       }
       
       // Check if we should show the Flow Intro Screen
-      // This is for Day 1 completion only
+      // This is for Day 1 completion only and should only happen once
       if (flow != null && flow.hasFlowForDay(1) && mounted) {
         // Check if this is the first time we're showing this
         final shownFlowIntro = await _hasShownFlowIntro();
@@ -231,24 +231,10 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
           // Mark as shown so we don't show it again
           await _markFlowIntroAsShown();
           
-          // Show the Flow Intro Screen after a short delay
-          Future.delayed(Duration(milliseconds: 500), () {
-            if (mounted) {
-              Navigator.of(context).push(
-                PageRouteBuilder(
-                  pageBuilder: (context, animation, secondaryAnimation) => FlowIntroScreen(),
-                  transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                    const begin = Offset(0.0, 1.0);
-                    const end = Offset.zero;
-                    const curve = Curves.easeOutQuint;
-                    var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-                    var offsetAnimation = animation.drive(tween);
-                    return SlideTransition(position: offsetAnimation, child: child);
-                  },
-                ),
-              );
-            }
-          });
+          // No longer automatically showing the Flow Intro here
+          // It will only show after completing Day 1 in the meditation_day_screen.dart
+          // or when the user taps on the Flow counter widget
+          print('Flow intro already marked as shown from journey screen');
         }
       }
     } catch (e) {

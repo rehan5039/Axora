@@ -584,7 +584,7 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
     
     // Check if this is Day 1 completion - show Flow Intro instead
     if (widget.content.day == 1) {
-      print('Day 1 completed - showing Flow Intro screen');
+      print('Day 1 completed - checking if Flow Intro already shown');
       
       // Make sure we don't show multiple dialogs
       if (ModalRoute.of(context)?.isCurrent != true) {
@@ -592,32 +592,40 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
         return;
       }
       
-      // Show Flow Intro screen immediately after Great Job dialog
-      Future.delayed(Duration(milliseconds: 500), () {
-        if (mounted) {
-          Navigator.of(context).push(
-            PageRouteBuilder(
-              pageBuilder: (context, animation, secondaryAnimation) => FlowIntroScreen(),
-              transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                const begin = Offset(0.0, 1.0);
-                const end = Offset.zero;
-                const curve = Curves.easeOutQuint;
-                var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-                var offsetAnimation = animation.drive(tween);
-                return SlideTransition(position: offsetAnimation, child: child);
-              },
-            ),
-          ).then((_) {
-            // After intro is closed, mark flow intro as shown
-            _markFlowIntroAsShown();
-            
-            // Return to journey screen
-            if (mounted) {
-              Navigator.of(context).pop();
-            }
-          });
+      // Check if we've already shown the Flow intro before showing it again
+      _hasShownFlowIntro().then((alreadyShown) {
+        if (alreadyShown) {
+          print('Flow Intro already shown previously - skipping');
           return;
         }
+        
+        // Show Flow Intro screen immediately after Great Job dialog
+        Future.delayed(Duration(milliseconds: 500), () {
+          if (mounted) {
+            Navigator.of(context).push(
+              PageRouteBuilder(
+                pageBuilder: (context, animation, secondaryAnimation) => FlowIntroScreen(),
+                transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                  const begin = Offset(0.0, 1.0);
+                  const end = Offset.zero;
+                  const curve = Curves.easeOutQuint;
+                  var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+                  var offsetAnimation = animation.drive(tween);
+                  return SlideTransition(position: offsetAnimation, child: child);
+                },
+              ),
+            ).then((_) {
+              // After intro is closed, mark flow intro as shown
+              _markFlowIntroAsShown();
+              
+              // Return to journey screen
+              if (mounted) {
+                Navigator.of(context).pop();
+              }
+            });
+            return;
+          }
+        });
       });
     }
     
@@ -768,6 +776,17 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
       print('Flow intro marked as shown');
     } catch (e) {
       print('Error marking flow intro as shown: $e');
+    }
+  }
+
+  // Helper method to check if we've already shown the Flow intro
+  Future<bool> _hasShownFlowIntro() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool('shown_flow_intro') ?? false;
+    } catch (e) {
+      print('Error checking if flow intro was shown: $e');
+      return false;
     }
   }
 
