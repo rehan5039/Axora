@@ -18,6 +18,15 @@ class MeditationContent {
     required this.createdAt,
     this.isActive = true,
   });
+  
+  // Simple constructor for creating a MeditationContent with just a day number
+  MeditationContent.withDay({required this.day})
+    : id = 'Day-$day',
+      title = 'Day $day',
+      article = {'title': 'Day $day', 'content': ''},
+      audio = {'title': 'Day $day', 'url': '', 'durationInSeconds': 0},
+      createdAt = Timestamp.now(),
+      isActive = true;
 
   factory MeditationContent.fromFirestore(DocumentSnapshot doc) {
     try {

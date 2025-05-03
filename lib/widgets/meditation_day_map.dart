@@ -1,20 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:axora/models/user_stickers.dart';
+import 'package:axora/models/user_flow.dart';
 import 'package:axora/models/user_progress.dart';
+import 'package:axora/models/meditation_content.dart';
 import 'dart:async';
 
 class MeditationDayMap extends StatefulWidget {
   final UserProgress? userProgress;
-  final UserStickers? userStickers;
+  final UserFlow? userFlow;
   final bool isDarkMode;
   final int daysToShow;
   final int totalDays;
-  final Function(int)? onDayTap;
+  final Function(MeditationContent)? onDayTap;
 
   const MeditationDayMap({
     super.key,
     required this.userProgress,
-    required this.userStickers,
+    required this.userFlow,
     required this.isDarkMode,
     this.daysToShow = 7,
     this.totalDays = 35, // Increasing default to 35 days
@@ -263,11 +264,11 @@ class _MeditationDayMapState extends State<MeditationDayMap> with SingleTickerPr
     if (progress == null) return false;
     
     // Check if previous day is completed
-    final previousDayCompleted = widget.userStickers?.hasStickerForDay(day - 1) ?? false;
+    final previousDayCompleted = widget.userFlow?.hasFlowForDay(day - 1) ?? false;
     if (!previousDayCompleted) return false;
     
     // Check if this day is already completed
-    final isCompleted = widget.userStickers?.hasStickerForDay(day) ?? false;
+    final isCompleted = widget.userFlow?.hasFlowForDay(day) ?? false;
     if (isCompleted) return true;
     
     // Check if 24 hours have passed since previous day completion
@@ -307,7 +308,7 @@ class _MeditationDayMapState extends State<MeditationDayMap> with SingleTickerPr
     final progress = widget.userProgress;
     if (progress == null) return null;
     
-    final previousDayCompleted = widget.userStickers?.hasStickerForDay(day - 1) ?? false;
+    final previousDayCompleted = widget.userFlow?.hasFlowForDay(day - 1) ?? false;
     if (!previousDayCompleted) return null;
     
     final lastCompletedAt = progress.lastCompletedAt?.toDate();
@@ -324,108 +325,163 @@ class _MeditationDayMapState extends State<MeditationDayMap> with SingleTickerPr
     return null;
   }
 
-  Widget _buildDayCircles(int weekStartDay) {
+  Widget _buildDayItem(int day, {required bool enabled}) {
+    if (day > widget.totalDays) {
+      return const SizedBox.shrink();
+    }
+    
+    // Determine completion status
+    final previousDayCompleted = widget.userFlow?.hasFlowForDay(day - 1) ?? false;
     final currentDay = widget.userProgress?.currentDay ?? 1;
+    
+    final isAccessible = day <= currentDay;
+    final isCompleted = widget.userFlow?.hasFlowForDay(day) ?? false;
     
     // Days of the week abbreviations
     final List<String> daysOfWeek = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+    final dayOfWeekIndex = (day - 1) % 7;
     
+    return GestureDetector(
+      onTap: () {
+        if (enabled) {
+          widget.onDayTap?.call(MeditationContent.withDay(day: day));
+        }
+      },
+      child: Column(
+        children: [
+          Container(
+            width: 35,
+            height: 35,
+            decoration: BoxDecoration(
+              color: isCompleted 
+                ? Colors.amber
+                : (widget.isDarkMode ? Colors.grey[800] : Colors.grey[300]),
+              shape: BoxShape.circle,
+              border: day == currentDay
+                ? Border.all(color: Colors.white, width: 2)
+                : null,
+            ),
+            child: Center(
+              child: isCompleted
+                ? const Icon(Icons.check, color: Colors.white, size: 18)
+                : Text(
+                    daysOfWeek[dayOfWeekIndex],
+                    style: TextStyle(
+                      color: enabled
+                        ? (widget.isDarkMode ? Colors.white : Colors.black87)
+                        : (widget.isDarkMode ? Colors.grey[500] : Colors.grey[600]),
+                      fontWeight: day == currentDay ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Day $day',
+            style: TextStyle(
+              color: widget.isDarkMode ? Colors.grey[300] : Colors.grey[700],
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDayCircle(int day, {bool isActive = false, bool isCompleted = false}) {
+    // Use the existing method implementation
+    final isCompleted = widget.userFlow?.hasFlowForDay(day) ?? false;
+    
+    return Container(
+      width: 35,
+      height: 35,
+      decoration: BoxDecoration(
+        color: isCompleted 
+          ? Colors.amber
+          : (widget.isDarkMode ? Colors.grey[800] : Colors.grey[300]),
+        shape: BoxShape.circle,
+      ),
+      child: Center(
+        child: isCompleted
+          ? const Icon(Icons.check, color: Colors.white, size: 18)
+          : Text(
+              day.toString(),
+              style: TextStyle(
+                color: widget.isDarkMode ? Colors.white : Colors.black87,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+      ),
+    );
+  }
+
+  // Add method to build day circles
+  Widget _buildDayCircles(int startDay) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: List.generate(
-        // Only generate as many days as needed (don't exceed totalDays)
-        (weekStartDay + widget.daysToShow - 1 > widget.totalDays) 
-            ? (widget.totalDays - weekStartDay + 1) 
-            : widget.daysToShow, 
+        widget.daysToShow,
         (index) {
-          final day = weekStartDay + index;
-          // Skip if day is beyond totalDays
-          if (day > widget.totalDays) return const SizedBox.shrink();
+          final day = startDay + index;
+          if (day > widget.totalDays) {
+            return const SizedBox.shrink();
+          }
           
-          final isCompleted = widget.userStickers?.hasStickerForDay(day) ?? false;
-          final isCurrentDay = day == currentDay;
-          final isUnlocked = _isDayUnlocked(day);
-          final dayOfWeekIndex = (index) % 7;
-          final dayStatus = _getDayStatus(day, isCompleted, isCurrentDay);
-          final isHolding = _holdingDayIndex == index;
+          final currentDay = widget.userProgress?.currentDay ?? 1;
+          final isCompleted = widget.userFlow?.hasFlowForDay(day) ?? false;
+          final isActive = day <= currentDay;
           
-          // Determine if the day should be clickable
-          final isClickable = isUnlocked || isCompleted;
-
           return GestureDetector(
             onTap: () {
-              if (isClickable) {
-                print("Tapped on day $day - calling onDayTap");
-                widget.onDayTap?.call(day);
-              } else {
-                print("Day $day is locked");
+              if (isActive || isCompleted) {
+                widget.onDayTap?.call(MeditationContent.withDay(day: day));
               }
             },
-            onLongPress: isClickable ? () => _startHolding(index) : null,
+            onLongPress: (isActive || isCompleted) ? () => _startHolding(index) : null,
             child: AnimatedBuilder(
               animation: _animationController,
               builder: (context, child) {
-                final scale = isHolding 
-                    ? _scaleAnimation.value 
-                    : (_holdingDayIndex != null ? 0.8 : 1.0);
-                    
+                final scale = index == _holdingDayIndex 
+                  ? _scaleAnimation.value 
+                  : (_holdingDayIndex != null ? 0.8 : 1.0);
+                  
                 return Transform.scale(
                   scale: scale,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Day indicator circle
                       Container(
                         width: 35,
                         height: 35,
                         decoration: BoxDecoration(
                           color: isCompleted 
-                              ? Colors.amber
-                              : (widget.isDarkMode ? Colors.grey[800] : Colors.grey[300]),
+                            ? Colors.amber
+                            : (widget.isDarkMode ? Colors.grey[800] : Colors.grey[300]),
                           shape: BoxShape.circle,
-                          border: isCurrentDay
-                              ? Border.all(color: Colors.white, width: 2)
-                              : null,
-                          boxShadow: isCurrentDay || isHolding
-                              ? [
-                                  BoxShadow(
-                                    color: isHolding 
-                                       ? Colors.blue.withOpacity(0.5)
-                                       : Colors.white.withOpacity(0.5),
-                                    blurRadius: isHolding ? 10 : 5,
-                                    spreadRadius: isHolding ? 2 : 1,
-                                  )
-                                ]
-                              : null,
+                          border: day == currentDay
+                            ? Border.all(color: Colors.white, width: 2)
+                            : null,
                         ),
                         child: Center(
                           child: isCompleted
-                            ? const Icon(
-                                Icons.check,
-                                color: Colors.white,
-                                size: 18,
-                              )
+                            ? const Icon(Icons.check, color: Colors.white, size: 18)
                             : Text(
-                                daysOfWeek[dayOfWeekIndex],
+                                day.toString(),
                                 style: TextStyle(
-                                  color: isClickable
+                                  color: (isActive || isCompleted)
                                     ? (widget.isDarkMode ? Colors.white : Colors.black87)
                                     : (widget.isDarkMode ? Colors.grey[500] : Colors.grey[600]),
-                                  fontWeight: isCurrentDay ? FontWeight.bold : FontWeight.normal,
-                                  fontSize: 13,
+                                  fontWeight: day == currentDay ? FontWeight.bold : FontWeight.normal,
                                 ),
                               ),
                         ),
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 4),
                       Text(
-                        dayStatus,
+                        'Day $day',
                         style: TextStyle(
-                          color: isCurrentDay
-                              ? Colors.white
-                              : (widget.isDarkMode ? Colors.grey[400] : Colors.grey[700]),
-                          fontSize: 11,
-                          fontWeight: isCurrentDay ? FontWeight.bold : FontWeight.normal,
+                          color: widget.isDarkMode ? Colors.grey[300] : Colors.grey[700],
+                          fontSize: 12,
                         ),
                       ),
                     ],
@@ -434,7 +490,7 @@ class _MeditationDayMapState extends State<MeditationDayMap> with SingleTickerPr
               },
             ),
           );
-        }
+        },
       ),
     );
   }
@@ -599,12 +655,12 @@ class _MeditationDayMapState extends State<MeditationDayMap> with SingleTickerPr
                 if (_isHolding && !_hasMovedWhileHolding) {
                   // If we were holding but didn't move, this is a tap after a long press
                   final day = _startDay + (_holdingDayIndex ?? 0);
-                  final isCompleted = widget.userStickers?.hasStickerForDay(day) ?? false;
+                  final isCompleted = widget.userFlow?.hasFlowForDay(day) ?? false;
                   final isUnlocked = _isDayUnlocked(day);
                   
                   if (isUnlocked || isCompleted) {
                     print("Releasing held day $day - calling onDayTap");
-                    widget.onDayTap?.call(day);
+                    widget.onDayTap?.call(MeditationContent.withDay(day: day));
                   }
                 }
                 _stopHolding();
@@ -633,12 +689,11 @@ class _MeditationDayMapState extends State<MeditationDayMap> with SingleTickerPr
                                     Positioned.fill(
                                       top: 20,
                                       child: CustomPaint(
-                                        painter: DayConnectionsPainter(
-                                          startDay: _previousStartDay,
-                                          daysCount: widget.daysToShow,
-                                          currentDay: currentDay,
-                                          userStickers: widget.userStickers,
+                                        painter: PathPainter(
                                           isDarkMode: widget.isDarkMode,
+                                          userFlow: widget.userFlow,
+                                          currentLineDay: _previousStartDay,
+                                          nextLineDay: _previousStartDay + 1,
                                         ),
                                       ),
                                     ),
@@ -670,12 +725,11 @@ class _MeditationDayMapState extends State<MeditationDayMap> with SingleTickerPr
                                     Positioned.fill(
                                       top: 20,
                                       child: CustomPaint(
-                                        painter: DayConnectionsPainter(
-                                          startDay: _startDay,
-                                          daysCount: widget.daysToShow,
-                                          currentDay: currentDay,
-                                          userStickers: widget.userStickers,
+                                        painter: PathPainter(
                                           isDarkMode: widget.isDarkMode,
+                                          userFlow: widget.userFlow,
+                                          currentLineDay: _startDay,
+                                          nextLineDay: _startDay + 1,
                                         ),
                                       ),
                                     ),
@@ -695,12 +749,11 @@ class _MeditationDayMapState extends State<MeditationDayMap> with SingleTickerPr
                         Positioned.fill(
                           top: 20,
                           child: CustomPaint(
-                            painter: DayConnectionsPainter(
-                              startDay: _startDay,
-                              daysCount: widget.daysToShow,
-                              currentDay: currentDay,
-                              userStickers: widget.userStickers,
+                            painter: PathPainter(
                               isDarkMode: widget.isDarkMode,
+                              userFlow: widget.userFlow,
+                              currentLineDay: _startDay,
+                              nextLineDay: _startDay + 1,
                             ),
                           ),
                         ),
@@ -731,64 +784,57 @@ class _MeditationDayMapState extends State<MeditationDayMap> with SingleTickerPr
   }
 }
 
-class DayConnectionsPainter extends CustomPainter {
-  final int startDay;
-  final int daysCount;
-  final int currentDay;
-  final UserStickers? userStickers;
+class PathPainter extends CustomPainter {
   final bool isDarkMode;
-
-  DayConnectionsPainter({
-    required this.startDay,
-    required this.daysCount,
-    required this.currentDay,
-    required this.userStickers,
+  final UserFlow? userFlow;
+  final int currentLineDay;
+  final int nextLineDay;
+  
+  PathPainter({
     required this.isDarkMode,
+    required this.userFlow,
+    required this.currentLineDay,
+    required this.nextLineDay,
   });
-
+  
   @override
   void paint(Canvas canvas, Size size) {
     final width = size.width;
-    final circleSpacing = width / daysCount;
     final centerY = size.height / 2;
     final strokeWidth = 3.0;
-
+    
     // Create paints for different states
-    final completedLinePaint = Paint()
+    final completedPaint = Paint()
       ..color = Colors.amber
       ..strokeWidth = strokeWidth
       ..style = PaintingStyle.stroke;
-
-    final uncompletedLinePaint = Paint()
+      
+    final uncompletedPaint = Paint()
       ..color = isDarkMode ? Colors.grey[700]! : Colors.grey[400]!
       ..strokeWidth = strokeWidth
       ..style = PaintingStyle.stroke;
-
-    // Draw connection lines between days
-    for (int i = 0; i < daysCount - 1; i++) {
-      final currentLineDay = startDay + i;
-      final nextLineDay = startDay + i + 1;
-      
-      final startX = (i * circleSpacing) + (circleSpacing / 2);
-      final endX = ((i + 1) * circleSpacing) + (circleSpacing / 2);
-      
-      final isStartCompleted = userStickers?.hasStickerForDay(currentLineDay) ?? false;
-      final isEndCompleted = userStickers?.hasStickerForDay(nextLineDay) ?? false;
-      
-      // Determine the paint to use based on completion status
-      final paint = (isStartCompleted && isEndCompleted)
-          ? completedLinePaint
-          : uncompletedLinePaint;
-      
-      // Draw the line
-      canvas.drawLine(
-        Offset(startX, centerY),
-        Offset(endX, centerY),
-        paint,
-      );
-    }
+    
+    // Determine if the current day segment should be highlighted
+    final isStartCompleted = userFlow?.hasFlowForDay(currentLineDay) ?? false;
+    final isEndCompleted = userFlow?.hasFlowForDay(nextLineDay) ?? false;
+    
+    // Draw the line
+    final paint = (isStartCompleted && isEndCompleted) ? completedPaint : uncompletedPaint;
+    canvas.drawLine(
+      Offset(0, centerY),
+      Offset(width, centerY),
+      paint,
+    );
   }
-
+  
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    if (oldDelegate is PathPainter) {
+      return oldDelegate.isDarkMode != isDarkMode ||
+             oldDelegate.userFlow != userFlow ||
+             oldDelegate.currentLineDay != currentLineDay ||
+             oldDelegate.nextLineDay != nextLineDay;
+    }
+    return true;
+  }
 } 

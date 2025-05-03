@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:axora/models/meditation_content.dart';
 import 'package:axora/models/user_progress.dart';
-import 'package:axora/models/user_stickers.dart';
+import 'package:axora/models/user_flow.dart';
 import 'package:axora/services/meditation_service.dart';
 import 'package:axora/screens/meditation_day_screen.dart';
 import 'package:provider/provider.dart';
@@ -25,7 +25,7 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
   bool _isLoading = true;
   List<MeditationContent> _meditationContents = [];
   UserProgress? _userProgress;
-  UserStickers? _userStickers;
+  UserFlow? _userFlow;
   Timer? _unlockTimer;
   Duration _timeRemaining = Duration.zero;
   bool _isSyncingWithServer = false;
@@ -44,7 +44,6 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
   
   @override
   void dispose() {
-    _unlockTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -78,7 +77,7 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
       
       // Load user data first
       final progress = await _meditationService.getUserProgress();
-      final stickers = await _meditationService.getUserStickers();
+      final flow = await _meditationService.getUserFlow();
       
       print('User progress loaded: ${progress?.currentDay ?? 'null'}');
       if (progress != null) {
@@ -88,7 +87,7 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
         print('Completed days: ${progress.completedDays.join(', ')}');
         
         // Always check if we need to display a timer after completing a day
-        if (progress.lastCompletedDay > 0 || (stickers != null && stickers.stickers > 0)) {
+        if (progress.lastCompletedDay > 0 || (flow != null && flow.flow > 0)) {
           // Always calculate remaining time, even if canUnlockNextDay is true
           // This ensures we show 0:00:00 when the timer expires
           final remainingSeconds = progress.getSecondsUntilNextDayUnlocks();
@@ -146,7 +145,7 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
       }
       
       // Create a custom sort order based on completion status and current day
-      if (stickers != null && progress != null) {
+      if (flow != null && progress != null) {
         // First sort by numerical day order
         contents.sort((a, b) => a.day.compareTo(b.day));
         
@@ -158,8 +157,8 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
         // 5. Completed days at the end
         contents.sort((a, b) {
           // Get completion status
-          final isACompleted = stickers.hasStickerForDay(a.day);
-          final isBCompleted = stickers.hasStickerForDay(b.day);
+          final isACompleted = flow.hasFlowForDay(a.day);
+          final isBCompleted = flow.hasFlowForDay(b.day);
           
           // If one is completed and the other isn't, completed goes at the end
           if (isACompleted && !isBCompleted) return 1;
@@ -196,7 +195,7 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
       setState(() {
         _meditationContents = contents;
         _userProgress = progress;
-        _userStickers = stickers;
+        _userFlow = flow;
         _isLoading = false;
       });
       
@@ -253,7 +252,7 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
     try {
       print('Starting sync with server...');
       final meditationProgress = await _meditationService.getUserProgress();
-      final userStickers = await _meditationService.getUserStickers();
+      final userFlow = await _meditationService.getUserFlow();
       
       if (meditationProgress == null) {
         print('No meditation progress found during sync.');
@@ -266,7 +265,7 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
       
       print('Got meditation progress - current day: ${meditationProgress.currentDay}');
       print('Last completed at: ${meditationProgress.lastCompletedAt?.toDate()}');
-      print('User has ${userStickers?.stickers ?? 0} stickers');
+      print('User has ${userFlow?.flow ?? 0} flow');
 
       // Store previous day to check if a new day was unlocked
       final previousDay = _currentDay;
@@ -275,82 +274,66 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
       setState(() {
         _currentDay = meditationProgress.currentDay;
         _lastCompletedAt = meditationProgress.lastCompletedAt?.toDate();
-        _userStickers = userStickers;
+        _userFlow = userFlow;
       });
       
-      // Check if a new day was unlocked (current day changed)
-      if (_currentDay > previousDay) {
-        print('Day $_currentDay was unlocked! Sending notification...');
-        await _notificationService.showDayUnlockedNotification(_currentDay);
-      }
-      
-      // Check if the previous day was completed
-      final nextDay = (userStickers?.stickers ?? 0) + 1;
-      final isPreviousDayCompleted = userStickers?.hasStickerForDay(nextDay - 1) ?? false;
-      
-      // Check if user has completed a day based on stickers but it's not reflected in progress
-      final hasCompletedBasedOnStickers = (userStickers?.stickers ?? 0) > 0;
-      final hasCompletedBasedOnProgress = meditationProgress.lastCompletedDay > 0;
-      
-      // Calculate time since last completion
-      final now = DateTime.now();
-      if (_lastCompletedAt != null && 
-          (hasCompletedBasedOnProgress || hasCompletedBasedOnStickers) && 
-          isPreviousDayCompleted) {
-        final difference = now.difference(_lastCompletedAt!);
+      // Force unlock next day if user has flow
+      if (userFlow != null && userFlow.flow > 0) {
+        final nextDay = userFlow.flow + 1; // Base next day on flow count
         
-        // Check if 24 hours have passed and if we need to unlock the next day
-        if (difference.inHours >= 24) {
-          print('24 hours have passed. Forcing unlock of next day...');
+        // Check if the next day needs to be unlocked
+        if (meditationProgress.currentDay < nextDay) {
+          print('Forcing unlock of day $nextDay based on flow count');
           
-          // Explicitly call the method to update current day if the timer expired
-          final unlockResult = await _meditationService.updateCurrentDayIfTimerExpired();
-          print('Auto-unlock result: $unlockResult');
+          // Force unlock the next day
+          final unlockResult = await _meditationService.forceUnlockDay(nextDay);
+          print('Force unlock result: $unlockResult');
           
-          // Reload progress after update
-          final updatedProgress = await _meditationService.getUserProgress();
-          if (updatedProgress != null) {
-            // Store previous day before updating
-            final oldDay = _currentDay;
-            
-            setState(() {
-              _userProgress = updatedProgress;
-              _currentDay = updatedProgress.currentDay;
-              _canUnlockNextDay = true;
-              _timeRemaining = Duration.zero;
-            });
-            print('Updated current day to: ${updatedProgress.currentDay}');
-            
-            // If current day changed, send notification
-            if (_currentDay > oldDay) {
-              print('New day unlocked during sync: Day $_currentDay!');
+          if (unlockResult) {
+            // Reload progress after update
+            final updatedProgress = await _meditationService.getUserProgress();
+            if (updatedProgress != null) {
+              setState(() {
+                _userProgress = updatedProgress;
+                _currentDay = updatedProgress.currentDay;
+                _canUnlockNextDay = true;
+                _timeRemaining = Duration.zero;
+              });
+              
+              // Show notification for unlocked day
               await _notificationService.showDayUnlockedNotification(_currentDay);
             }
           }
         } else {
-          // Update the timer - remaining time until 24 hours
-          _canUnlockNextDay = false;
-          _timeRemaining = Duration(hours: 24) - difference;
-          print('Time remaining: ${_timeRemaining.inHours}h ${_timeRemaining.inMinutes % 60}m');
-          
-          // Schedule a notification for when the next day will unlock
-          if (_timeRemaining.inHours > 0) {
-            await _notificationService.cancelNotification(1000 + nextDay);
-            await _notificationService.scheduleDayUnlockNotification(
-              nextDay, 
-              _timeRemaining
-            );
-            print('Scheduled notification for Day $nextDay unlock in $_timeRemaining');
-          }
-          
-          // Start or restart the timer
-          _updateUnlockTimer();
+          print('Day $nextDay is already unlocked, no need to force unlock');
         }
-      } else if (_currentDay == 1 && !hasCompletedBasedOnStickers) {
-        // First day, no waiting required
-        _canUnlockNextDay = true;
-        _timeRemaining = Duration.zero;
-        _unlockTimer?.cancel();
+      } else if (meditationProgress.lastCompletedDay > 0) {
+        // If no flow but we have a completed day, try to unlock next day
+        final nextDay = meditationProgress.lastCompletedDay + 1;
+        
+        if (meditationProgress.currentDay < nextDay) {
+          print('Forcing unlock of day $nextDay based on lastCompletedDay');
+          
+          // Force unlock the next day
+          final unlockResult = await _meditationService.forceUnlockDay(nextDay);
+          print('Force unlock result: $unlockResult');
+          
+          if (unlockResult) {
+            // Reload progress after update
+            final updatedProgress = await _meditationService.getUserProgress();
+            if (updatedProgress != null) {
+              setState(() {
+                _userProgress = updatedProgress;
+                _currentDay = updatedProgress.currentDay;
+                _canUnlockNextDay = true;
+                _timeRemaining = Duration.zero;
+              });
+              
+              // Show notification for unlocked day
+              await _notificationService.showDayUnlockedNotification(_currentDay);
+            }
+          }
+        }
       }
       
       // Make sure we always update the UI after syncing
@@ -358,6 +341,9 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
         _isLoading = false;
         _isSyncingWithServer = false;
       });
+      
+      // Force reload data to ensure UI is fresh
+      _loadData();
       
     } catch (e) {
       print('Error during sync: $e');
@@ -501,9 +487,9 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
     print('Emergency direct unlock for day $day');
     
     try {
-      // Get user progress and stickers
+      // Get user progress and flow
       final progress = await _meditationService.getUserProgress();
-      final stickers = await _userStickers;
+      final userFlow = await _userFlow;
       
       if (progress != null) {
         // Create updates
@@ -513,8 +499,8 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
           'lastUpdated': FieldValue.serverTimestamp()
         };
         
-        // If this is day 2 and we have a sticker for day 1, fix lastCompletedDay
-        if (day == 2 && stickers != null && stickers.stickers > 0) {
+        // If this is day 2 and we have a flow for day 1, fix lastCompletedDay
+        if (day == 2 && userFlow != null && userFlow.flow > 0) {
           updates['lastCompletedDay'] = 1;
         }
         
@@ -534,6 +520,55 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
       }
     } catch (e) {
       print('Error in emergency unlock: $e');
+    }
+  }
+
+  void _onDayCardTap(MeditationContent content) async {
+    final currentDay = _userProgress?.currentDay ?? 1;
+    final isUnlocked = content.day <= currentDay;
+    
+    if (!isUnlocked) {
+      final snackBar = SnackBar(
+        content: Text('Day ${content.day} is still locked. Complete previous days first.'),
+        duration: const Duration(seconds: 2),
+      );
+      ScaffoldMessenger.of(context).showSnackBar(snackBar);
+      return;
+    }
+    
+    // Check if this would be a new day completion
+    final isNewDay = _userFlow == null || !_userFlow!.hasFlowForDay(content.day);
+    final isIncrementingDay = isNewDay && content.day > (_userProgress?.lastCompletedDay ?? 0);
+    
+    // If attempting to complete a new higher numbered day, check if one day has already been completed today
+    // Skip this check for Day 1 (the first day in the meditation journey)
+    if (isIncrementingDay && content.day > 1) {
+      final canCompleteToday = await _meditationService.canCompleteNewDayToday();
+      if (!canCompleteToday) {
+        // Show message that they can only complete one new day per calendar day
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => _buildCompletionDialog(),
+        );
+        return;
+      }
+    }
+    
+    // Navigate to day screen
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => MeditationDayScreen(
+          content: content,
+          onComplete: () => _loadData(),
+        ),
+      ),
+    );
+    
+    // Reload data if day was completed
+    if (result == true) {
+      _loadData();
     }
   }
 
@@ -566,7 +601,21 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _loadData,
+            onPressed: () {
+              // Show loading indicator
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Refreshing and unlocking next day if available...'),
+                  duration: Duration(seconds: 2),
+                ),
+              );
+              
+              // First synchronize with server to try unlocking next day
+              _syncWithServerAndUnlockNextDay().then((_) {
+                // Then reload data to update UI
+                _loadData();
+              });
+            },
           ),
         ],
       ),
@@ -589,32 +638,22 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Complete each day to unlock the next one. Read the article and listen to the meditation to earn stickers.',
+                      'Complete each day to unlock the next one. Read the article and listen to the meditation to earn flow.',
                       style: textStyle,
                     ),
                     
                     // Add the day map widget here
                     MeditationDayMap(
                       userProgress: _userProgress,
-                      userStickers: _userStickers,
+                      userFlow: _userFlow,
                       isDarkMode: isDarkMode,
-                      onDayTap: (day) {
-                        // Find the content for the tapped day
-                        final content = _meditationContents.firstWhere(
-                          (content) => content.day == day,
-                          orElse: () => _meditationContents.first,
+                      onDayTap: (content) {
+                        // Find the actual content for this day
+                        final actualContent = _meditationContents.firstWhere(
+                          (c) => c.day == content.day,
+                          orElse: () => content,
                         );
-                        
-                        // Navigate to the day screen
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => MeditationDayScreen(
-                              content: content,
-                              onComplete: _loadData,
-                            ),
-                          ),
-                        );
+                        _onDayCardTap(actualContent);
                       },
                     ),
                     
@@ -625,7 +664,7 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
                         // Only show timer if we have completed a day or timer is running
                         if (_userProgress != null && ((_userProgress!.lastCompletedDay > 0) || 
                             _timeRemaining.inSeconds > 0 || 
-                            (_userStickers != null && _userStickers!.stickers > 0)))
+                            (_userFlow != null && _userFlow!.flow > 0)))
                           _buildNextDayTimer(),
                       ],
                     ),
@@ -682,7 +721,7 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
   Widget _buildStickerCounter() {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final isDarkMode = themeProvider.isDarkMode;
-    final stickersCount = _userStickers?.stickers ?? 0;
+    final flowCount = _userFlow?.flow ?? 0;
     
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -697,8 +736,8 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
           ),
         ],
         border: Border.all(
-          color: Colors.amber,
-          width: stickersCount > 0 ? 2 : 0,
+          color: Colors.blue,
+          width: flowCount > 0 ? 2 : 0,
         ),
       ),
       child: Row(
@@ -707,12 +746,13 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
           Stack(
             alignment: Alignment.center,
             children: [
-              const Icon(
-                Icons.star,
-                color: Colors.amber,
-                size: 30,
+              Image.asset(
+                'assets/images/flow_icon.png',
+                width: 30,
+                height: 30,
+                color: Colors.blue,
               ),
-              if (stickersCount > 0)
+              if (flowCount > 0)
                 Positioned(
                   right: 0,
                   bottom: 0,
@@ -739,7 +779,7 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Stickers',
+                'Flow',
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
@@ -747,11 +787,11 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
                 ),
               ),
               Text(
-                stickersCount.toString(),
+                flowCount.toString(),
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: stickersCount > 0 ? Colors.amber : (isDarkMode ? Colors.white : Colors.black87),
+                  color: flowCount > 0 ? Colors.blue : (isDarkMode ? Colors.white : Colors.black87),
                 ),
               ),
             ],
@@ -765,27 +805,27 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
     final themeProvider = Provider.of<ThemeProvider>(context);
     final isDarkMode = themeProvider.isDarkMode;
     
-    // Check if we have any stickers (completed days)
+    // Check if we have any flow (completed days)
     final hasCompletedAnyDay = (_userProgress?.lastCompletedDay ?? 0) > 0 || 
-                              (_userStickers != null && _userStickers!.stickers > 0);
+                              (_userFlow != null && _userFlow!.flow > 0);
     
     // Determine the next day to unlock
     int nextDayNumber;
-    if (_userStickers != null && _userStickers!.stickers > 0) {
-      // If we have stickers, use that count + 1 as the next day
-      nextDayNumber = _userStickers!.stickers + 1;
+    if (_userFlow != null && _userFlow!.flow > 0) {
+      // If we have flow, use that count + 1 as the next day
+      nextDayNumber = _userFlow!.flow + 1;
     } else {
       // Otherwise fall back to the lastCompletedDay + 1
       nextDayNumber = (_userProgress?.lastCompletedDay ?? 0) + 1;
     }
     
-    // If nextDayNumber is still 1, make it 2 if we have stickers
-    if (nextDayNumber == 1 && _userStickers != null && _userStickers!.stickers > 0) {
+    // If nextDayNumber is still 1, make it 2 if we have flow
+    if (nextDayNumber == 1 && _userFlow != null && _userFlow!.flow > 0) {
       nextDayNumber = 2;
     }
     
-    // Fix: Check if the previous day is actually completed (has a sticker)
-    final isPreviousDayCompleted = _userStickers?.hasStickerForDay(nextDayNumber - 1) ?? false;
+    // Fix: Check if the previous day is actually completed (has a flow)
+    final isPreviousDayCompleted = _userFlow?.hasFlowForDay(nextDayNumber - 1) ?? false;
     
     final canUnlock = (_userProgress?.canUnlockNextDay() ?? false) && isPreviousDayCompleted;
     final isTimeOver = _timeRemaining.inSeconds <= 0 && isPreviousDayCompleted;
@@ -823,7 +863,7 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
               children: [
                 Text(
                   hasCompletedAnyDay && isPreviousDayCompleted
-                    ? 'Day $nextDayNumber ${isTimeOver ? "Ready!" : "Unlocks In:"}' 
+                    ? 'Day $nextDayNumber Ready!' 
                     : 'Complete Day 1 First',
                   style: TextStyle(
                     fontSize: 14,
@@ -833,11 +873,11 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
                 Row(
                   children: [
                     Text(
-                      _formattedTimeRemaining,
+                      'Available today',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: isTimeOver ? Colors.green : Colors.orange,
+                        color: Colors.green,
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -846,13 +886,21 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
                         // Show a message to the user
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text(isTimeOver 
-                              ? 'Refreshing to unlock Day $nextDayNumber...' 
-                              : 'Syncing time remaining...'),
+                            content: Text('Unlocking Day $nextDayNumber...'),
                             duration: const Duration(seconds: 2),
                           ),
                         );
-                        _syncWithServerAndUnlockNextDay();
+                        
+                        // First try to directly force unlock the next day
+                        _meditationService.forceUnlockDay(nextDayNumber).then((success) {
+                          if (success) {
+                            print('Successfully forced unlock of day $nextDayNumber');
+                            _loadData(); // Reload data to update UI
+                          } else {
+                            // If direct force unlock fails, try sync method
+                            _syncWithServerAndUnlockNextDay();
+                          }
+                        });
                       },
                       child: Container(
                         padding: const EdgeInsets.all(4),
@@ -861,7 +909,7 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Icon(
-                          isTimeOver ? Icons.refresh : Icons.sync,
+                          Icons.refresh,
                           size: 16,
                           color: Colors.blue,
                         ),
@@ -957,21 +1005,21 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
     final themeProvider = Provider.of<ThemeProvider>(context);
     final isDarkMode = themeProvider.isDarkMode;
     final currentDay = _userProgress?.currentDay ?? 1;
-    final isCompleted = _userStickers?.hasStickerForDay(content.day) ?? false;
+    final isCompleted = _userFlow?.hasFlowForDay(content.day) ?? false;
     
     // Fix: Make unlock status consistent across refreshes by checking both currentDay and completedDay
     final isUnlocked = content.day <= currentDay || isCompleted;
     
     // Fix: Only consider a day ready to unlock if the previous day is completed
-    // Check if the user has a sticker for the previous day (meaning they actually completed it)
-    final isPreviousDayCompleted = _userStickers?.hasStickerForDay(content.day - 1) ?? false;
+    // Check if the user has a flow for the previous day (meaning they actually completed it)
+    final isPreviousDayCompleted = _userFlow?.hasFlowForDay(content.day - 1) ?? false;
     
     // Fix: Only mark current day if it's actually unlocked
     final isCurrentDay = content.day == currentDay && isUnlocked;
     
     // Fix: A day is ready to unlock ONLY if:
     // 1. It's the next day after current day
-    // 2. The previous day has been completed (has a sticker)
+    // 2. The previous day has been completed (has a flow)
     // 3. The unlock timer has expired
     final isReadyToUnlock = content.day == currentDay + 1 && 
                           isPreviousDayCompleted && 
@@ -1006,15 +1054,7 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
             contentPadding: const EdgeInsets.all(16),
             onTap: isUnlocked
                 ? () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => MeditationDayScreen(
-                          content: content,
-                          onComplete: _loadData,
-                        ),
-                      ),
-                    );
+                    _onDayCardTap(content);
                   }
                 : content.day == currentDay + 1 && isPreviousDayCompleted && _canUnlockNextDay
                     ? () async {
@@ -1030,15 +1070,7 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
                         
                         // Now verify unlock status before proceeding
                         if (_userProgress?.currentDay == content.day) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => MeditationDayScreen(
-                                content: content,
-                                onComplete: _loadData,
-                              ),
-                            ),
-                          );
+                          _onDayCardTap(content);
                         } else {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
@@ -1207,6 +1239,155 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
             ),
         ],
       ),
+    );
+  }
+
+  Widget _buildCompletionDialog([bool flowAwarded = true]) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDarkMode = themeProvider.isDarkMode;
+    
+    return AlertDialog(
+      backgroundColor: Theme.of(context).brightness == Brightness.dark 
+          ? Colors.grey[850] 
+          : Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(
+          color: Colors.blue,
+          width: 2,
+        ),
+      ),
+      title: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Image.asset(
+            'assets/images/flow_icon.png',
+            width: 24,
+            height: 24,
+            color: Colors.blue,
+          ),
+          SizedBox(width: 10),
+          Text('Congratulations!'),
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              Image.asset(
+                'assets/images/flow_icon.png',
+                width: 84,
+                height: 84,
+                color: Colors.blue,
+              ),
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: Colors.green,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Theme.of(context).brightness == Brightness.dark 
+                          ? Colors.grey[850]! 
+                          : Colors.white,
+                      width: 2,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.check,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'You\'ve completed today\'s meditation!',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (flowAwarded)
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Image.asset(
+                    'assets/images/flow_icon.png',
+                    width: 24,
+                    height: 24,
+                    color: Colors.blue,
+                  ),
+                  SizedBox(width: 8),
+                  Text(
+                    'New Flow Awarded!',
+                    style: TextStyle(
+                      color: Colors.blue[800],
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.info_outline, color: Colors.grey[700]),
+                  SizedBox(width: 8),
+                  Text(
+                    'Day marked as completed',
+                    style: TextStyle(
+                      color: Colors.grey[700],
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+      actions: [
+        Center(
+          child: ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
+            child: Text('Continue'),
+          ),
+        ),
+      ],
     );
   }
 } 

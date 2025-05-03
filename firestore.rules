@@ -6,16 +6,8 @@ service cloud.firestore {
       return exists(/databases/$(database)/documents/admins/$(request.auth.uid));
     }
     
-    // Helper function to calculate time difference in seconds
-    function timeDifferenceInSeconds(timeValue) {
-      return request.time.toMillis() / 1000 - timeValue.seconds;
-    }
+    // Helper functions for time are no longer needed for unlocking
     
-    // Helper function to check if 24 hours (86400 seconds) have passed
-    function has24HoursPassed(timeValue) {
-      return timeDifferenceInSeconds(timeValue) >= 86400;
-    }
-
     // User authentication rules
     match /users/{userId} {
       // Allow users to read/write their own data, and admins to read all users' data
@@ -68,7 +60,7 @@ service cloud.firestore {
       allow write, delete: if request.auth != null && isAdmin();
     }
     
-    // Meditation progress with timer enforcement
+    // Meditation progress with no time restriction
     match /meditation_progress/{userId} {
       // Allow read for the user's own document or admins
       allow read: if request.auth != null && (
@@ -78,30 +70,22 @@ service cloud.firestore {
       // Allow initial creation of progress documents without restrictions
       allow create: if request.auth != null && request.auth.uid == userId;
       
-      // For updates, enforce the timer rules but ensure anonymous users can update
-      // Admins can delete any progress document
+      // For updates, remove time restriction
       allow update: if request.auth != null && (
         request.auth.uid == userId || isAdmin()
-      ) && (
-        // Always allow admins to update
-        isAdmin() ||
-        // Users can always update fields other than currentDay
-        !("currentDay" in request.resource.data && request.resource.data.currentDay > resource.data.currentDay) ||
-        // Users can only increment currentDay if 24 hours have passed
-        has24HoursPassed(resource.data.lastCompletedAt)
       );
       
       allow delete: if request.auth != null && isAdmin();
     }
     
-    // Meditation stickers collection
-    match /meditation_stickers/{userId} {
+    // Meditation flow collection
+    match /meditation_flow/{userId} {
       // Allow read for the user's own document or admins
       allow read: if request.auth != null && (
         request.auth.uid == userId || isAdmin()
       );
       
-      // Allow initial creation of sticker documents without restrictions
+      // Allow initial creation of flow documents without restrictions
       allow create: if request.auth != null && request.auth.uid == userId;
       
       // Allow updates with basic validation
@@ -109,7 +93,7 @@ service cloud.firestore {
         request.auth.uid == userId || isAdmin()
       );
       
-      // Allow admins to delete stickers
+      // Allow admins to delete flow data
       allow delete: if request.auth != null && isAdmin();
     }
     

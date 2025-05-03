@@ -131,7 +131,7 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
         
         // Now proceed with completion
         bool dayCompleted = false;
-        bool stickerAwarded = false;
+        bool flowAwarded = false;
         
         try {
           // Try to complete the day in Firebase
@@ -139,16 +139,16 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
           print('Completion check result: $dayCompleted');
           
           if (dayCompleted) {
-            print('Day ${widget.content.day} marked as completed! Sticker should be awarded.');
+            print('Day ${widget.content.day} marked as completed! Flow should be awarded.');
             
-            // Verify if sticker was awarded
-            final stickers = await _meditationService.getUserStickers();
-            stickerAwarded = stickers?.hasStickerForDay(widget.content.day) ?? false;
-            print('User now has ${stickers?.stickers ?? 0} stickers');
-            print('Sticker for day ${widget.content.day} exists: $stickerAwarded');
+            // Verify if flow was awarded
+            final flow = await _meditationService.getUserFlow();
+            flowAwarded = flow?.hasFlowForDay(widget.content.day) ?? false;
+            print('User now has ${flow?.flow ?? 0} flow');
+            print('Flow for day ${widget.content.day} exists: $flowAwarded');
             
-            // Update streak count when a day is completed and sticker awarded
-            if (stickerAwarded) {
+            // Update streak count when a day is completed and flow awarded
+            if (flowAwarded) {
               try {
                 final statsService = StatsService();
                 // First get existing stats
@@ -174,16 +174,16 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
               }
             }
             
-            // If sticker was not awarded, try to directly add it
-            if (!stickerAwarded && stickers != null) {
-              print('WARNING: Sticker was not awarded automatically. Trying to add it directly...');
-              await _meditationService.addStickerForDay(widget.content.day);
+            // If flow was not awarded, try to directly add it
+            if (!flowAwarded && flow != null) {
+              print('WARNING: Flow was not awarded automatically. Trying to add it directly...');
+              await _meditationService.addFlowForDay(widget.content.day);
               
               // Verify again
-              final verifyStickers = await _meditationService.getUserStickers();
-              stickerAwarded = verifyStickers?.hasStickerForDay(widget.content.day) ?? false;
-              print('After direct add, user has ${verifyStickers?.stickers ?? 0} stickers');
-              print('Sticker for day ${widget.content.day} exists: $stickerAwarded');
+              final verifyFlow = await _meditationService.getUserFlow();
+              flowAwarded = verifyFlow?.hasFlowForDay(widget.content.day) ?? false;
+              print('After direct add, user has ${verifyFlow?.flow ?? 0} flow');
+              print('Flow for day ${widget.content.day} exists: $flowAwarded');
             }
           }
         } catch (e) {
@@ -197,10 +197,14 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
           _isCheckingCompletion = false;
         });
         
-        // Always show success dialog, even if Firebase had issues
-        _showCompletionDialog(stickerAwarded);
-        widget.onComplete(); // Notify parent to refresh
-        
+        // Show Great Job dialog when completed
+        if (mounted) {
+          // Show the dialog and wait for user confirmation
+          _showGreatJobDialog();
+          // Calling widget.onComplete() here actually updates the parent widget
+          // without dismissing the current screen
+          widget.onComplete();
+        }
       } catch (e) {
         print('Error completing day: $e');
         print('Stack trace: ${StackTrace.current}');
@@ -278,10 +282,12 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
         print('Both article and audio completed - checking day completion');
         await _checkAndCompleteDayIfBothCompleted();
         
-        // Return to journey screen automatically
-        if (mounted) {
-          Navigator.of(context).pop();
+        // Make sure the Great Job dialog is displayed
+        if (mounted && _isDayCompleted) {
+          _showGreatJobDialog();
         }
+        
+        // Don't automatically navigate back - let the user click OK on the dialog
       } else {
         // Show a snackbar to prompt the user to listen to the audio
         if (mounted) {
@@ -356,10 +362,12 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
         print('Both audio and article completed - checking day completion');
         await _checkAndCompleteDayIfBothCompleted();
         
-        // Return to journey screen automatically
-        if (mounted) {
-          Navigator.of(context).pop();
+        // Make sure the Great Job dialog is displayed
+        if (mounted && _isDayCompleted) {
+          _showGreatJobDialog();
         }
+        
+        // Don't automatically navigate back - let the user click OK on the dialog
       }
     } catch (e) {
       print('Error marking audio as completed: $e');
@@ -369,7 +377,7 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
     }
   }
   
-  void _showCompletionDialog([bool stickerAwarded = true]) {
+  void _showCompletionDialog([bool flowAwarded = true]) {
     showDialog(
       context: context,
       barrierDismissible: false, // User must tap button to close dialog
@@ -387,7 +395,12 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
         title: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.celebration, color: Colors.amber),
+            Image.asset(
+              'assets/images/flow_icon.png',
+              width: 24,
+              height: 24,
+              color: Colors.amber,
+            ),
             SizedBox(width: 10),
             Text('Congratulations!'),
           ],
@@ -398,10 +411,11 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
             Stack(
               alignment: Alignment.center,
               children: [
-                Icon(
-                  Icons.star,
+                Image.asset(
+                  'assets/images/flow_icon.png',
+                  width: 84,
+                  height: 84,
                   color: Colors.amber,
-                  size: 84,
                 ),
                 Positioned(
                   right: 0,
@@ -438,7 +452,7 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
               ),
             ),
             const SizedBox(height: 12),
-            if (stickerAwarded)
+            if (flowAwarded)
               Container(
                 padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
@@ -450,10 +464,15 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
                   mainAxisSize: MainAxisSize.min,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.star, color: Colors.amber),
+                    Image.asset(
+                      'assets/images/flow_icon.png',
+                      width: 24,
+                      height: 24,
+                      color: Colors.amber,
+                    ),
                     SizedBox(width: 8),
                     Text(
-                      'New Sticker Awarded!',
+                      'New Flow Awarded!',
                       style: TextStyle(
                         color: Colors.amber[800],
                         fontWeight: FontWeight.bold,
@@ -541,14 +560,164 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
               ),
               onPressed: () {
                 Navigator.of(context).pop(); // Close dialog
-                // Return to journey screen automatically
-                Navigator.of(context).pop(); // Return to journey screen
+                
+                // Show the "Great Job Today!" dialog after closing the completion dialog
+                Future.delayed(Duration(milliseconds: 300), () {
+                  if (mounted) {
+                    _showGreatJobDialog();
+                  }
+                });
               },
             ),
           ),
         ],
       ),
     );
+  }
+  
+  // Add new method to show the Great Job Today! dialog
+  void _showGreatJobDialog() {
+    print('Showing Great Job dialog for day ${widget.content.day}');
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    final isDarkMode = themeProvider.isDarkMode;
+    
+    // Prevent showing multiple dialogs
+    if (ModalRoute.of(context)?.isCurrent != true) {
+      print('Not showing Great Job dialog - route is not current');
+      return;
+    }
+    
+    // Show a dialog that won't auto-dismiss
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Prevent dismiss by tapping outside
+      builder: (context) {
+        return WillPopScope(
+          // Prevent dialog from being dismissed with back button
+          onWillPop: () async => false,
+          child: TweenAnimationBuilder(
+            // Add attention-grabbing animation
+            duration: Duration(milliseconds: 500),
+            tween: Tween<double>(begin: 0.8, end: 1.0),
+            builder: (context, double value, child) {
+              return Transform.scale(
+                scale: value,
+                child: child,
+              );
+            },
+            child: Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20.0),
+              ),
+              elevation: 10,
+              backgroundColor: isDarkMode ? Color(0xFF2D2D3A) : Colors.white,
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                width: MediaQuery.of(context).size.width * 0.9,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Add an attention-grabbing celebration icon at the top
+                    TweenAnimationBuilder(
+                      duration: Duration(milliseconds: 800),
+                      tween: Tween<double>(begin: 0.5, end: 1.0),
+                      builder: (context, double value, child) {
+                        return Transform.scale(
+                          scale: value,
+                          child: child,
+                        );
+                      },
+                      child: Icon(
+                        Icons.celebration,
+                        size: 60,
+                        color: Colors.amber,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Great Job Today!',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: isDarkMode ? Colors.white : Colors.black87,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'You\'ve completed today\'s meditation journey.',
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: isDarkMode ? Colors.white70 : Colors.black87,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Take this time to reflect and recharge.',
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: isDarkMode ? Colors.white70 : Colors.black87,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Come back tomorrow for your next step.',
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: isDarkMode ? Colors.white70 : Colors.black87,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 25),
+                    // Animate the button to draw attention
+                    TweenAnimationBuilder(
+                      duration: Duration(milliseconds: 1000),
+                      tween: ColorTween(
+                        begin: Colors.grey,
+                        end: isDarkMode ? Colors.deepPurple : Colors.blue,
+                      ),
+                      builder: (context, Color? color, child) {
+                        return ElevatedButton(
+                          onPressed: () {
+                            // Only pop once to close this dialog
+                            // Do not automatically return to journey screen
+                            Navigator.of(context).pop();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: color,
+                            padding: EdgeInsets.symmetric(horizontal: 40, vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                          ),
+                          child: Text(
+                            'OK',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    ).then((_) {
+      // After dialog is closed, we can return to journey screen
+      if (mounted) {
+        print('Great Job dialog closed, returning to journey screen');
+        Navigator.of(context).pop();
+      }
+    });
   }
 
   @override

@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:axora/models/meditation_content.dart';
 import 'package:axora/models/user_progress.dart';
-import 'package:axora/models/user_stickers.dart';
+import 'package:axora/models/user_flow.dart';
 
 class MeditationService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -15,7 +15,7 @@ class MeditationService {
   // Collection references
   CollectionReference get _contentCollection => _firestore.collection('meditation_content');
   CollectionReference get _progressCollection => _firestore.collection('meditation_progress');
-  CollectionReference get _stickersCollection => _firestore.collection('meditation_stickers');
+  CollectionReference get _flowCollection => _firestore.collection('meditation_flow');
   CollectionReference get _adminsCollection => _firestore.collection('admins');
   
   // Check if current user is admin
@@ -325,6 +325,16 @@ class MeditationService {
         return true; // Already completed
       }
       
+      // Check if user has already completed a day today (if completing a new day)
+      if (day > progress.lastCompletedDay && progress.lastCompletedDay > 0) {
+        // Check if user can complete a new day today based on client date
+        final canCompleteToday = await canCompleteNewDayToday();
+        if (!canCompleteToday) {
+          print('User has already completed a day today, cannot complete another day');
+          return false;
+        }
+      }
+      
       print('Current progress - currentDay: ${progress.currentDay}, lastCompletedDay: ${progress.lastCompletedDay}');
       print('Completed days: ${progress.completedDays}');
       
@@ -332,22 +342,18 @@ class MeditationService {
       final updatedCompletedDays = List<int>.from(progress.completedDays)..add(day);
       int nextDay = progress.currentDay;
       
-      // If completing current day, increment currentDay if 24 hours have passed
-      if (day == progress.currentDay && progress.canUnlockNextDay()) {
+      // If completing current day, increment currentDay
+      if (day == progress.currentDay) {
         nextDay = day + 1;
         print('Unlocking next day: $nextDay');
       } else {
-        print('Next day unlocking conditions not met or completing a previous day');
+        print('Completing a previous day');
       }
       
-      // Calculate when the next day will unlock (24 hours from now)
+      // Calculate when the next day will unlock (24 hours from now - keeping this for backward compatibility)
       final now = Timestamp.now();
-      final nextDayUnlockTime = Timestamp.fromMillisecondsSinceEpoch(
-        now.millisecondsSinceEpoch + (24 * 60 * 60 * 1000) // 24 hours in milliseconds
-      );
       
       print('Updating progress in Firestore...');
-      print('Next day unlock time: ${nextDayUnlockTime.toDate()}');
       
       // Update in Firestore
       try {
@@ -364,7 +370,6 @@ class MeditationService {
           'lastCompletedAt': now,
           'completedDays': updatedCompletedDays,
           'currentDay': nextDay,
-          'timeUnlocked': nextDayUnlockTime, // When the next day will be unlocked
         });
         
         print('Progress updated successfully');
@@ -381,24 +386,23 @@ class MeditationService {
             'lastCompletedAt': now,
             'completedDays': updatedCompletedDays,
             'currentDay': nextDay,
-            'timeUnlocked': nextDayUnlockTime, // When the next day will be unlocked
           }, SetOptions(merge: true));
           print('Progress updated using alternative method');
         } catch (e) {
           print('Even alternative method failed: $e');
-          // Continue anyway to try to add the sticker
+          // Continue anyway to try to add the flow
         }
       }
       
-      // Add sticker for completed day - this needs to succeed
-      final stickerResult = await addStickerForDay(day);
-      print('Sticker added for day $day: $stickerResult');
+      // Add flow for completed day - this needs to succeed
+      final flowResult = await addFlowForDay(day);
+      print('Flow added for day $day: $flowResult');
       
-      // Double check that sticker was awarded
-      final stickers = await getUserStickers();
-      if (stickers != null) {
-        print('Sticker verification - User has ${stickers.stickers} stickers total');
-        print('Has sticker for day $day: ${stickers.hasStickerForDay(day)}');
+      // Double check that flow was awarded
+      final flow = await getUserFlow();
+      if (flow != null) {
+        print('Flow verification - User has ${flow.flow} flow total');
+        print('Has flow for day $day: ${flow.hasFlowForDay(day)}');
       }
       
       return true;
@@ -409,279 +413,255 @@ class MeditationService {
     }
   }
   
-  // Get user stickers with email
-  Future<UserStickers?> getUserStickers() async {
+  // Get user flow with email
+  Future<UserFlow?> getUserFlow() async {
     if (_userId == null) return null;
     
     try {
-      final doc = await _stickersCollection.doc(_userId).get();
+      final doc = await _flowCollection.doc(_userId).get();
       
       if (!doc.exists) {
-        // Create initial stickers if it doesn't exist
+        // Create initial flow if it doesn't exist
         // For anonymous users, we might not have an email, so use a default one
         final email = _userEmail ?? '$_userId@anonymous.user';
-        print('Creating initial stickers document for user: $_userId with email: $email');
+        print('Creating initial flow document for user: $_userId with email: $email');
         
-        final initialStickers = UserStickers(
+        final initialFlow = UserFlow(
           userId: _userId!,
           email: email,
-          stickers: 0,
+          flow: 0,
           earnedFromDays: [],
         );
         
         try {
-          await _stickersCollection.doc(_userId).set(initialStickers.toFirestore());
-          print('Successfully created initial stickers document');
-          return initialStickers;
+          await _flowCollection.doc(_userId).set(initialFlow.toFirestore());
+          print('Successfully created initial flow document');
+          return initialFlow;
         } catch (e) {
-          print('Error creating initial stickers document: $e');
+          print('Error creating initial flow document: $e');
           print('Stack trace: ${StackTrace.current}');
           // Return the object anyway so the app can continue
-          return initialStickers;
+          return initialFlow;
         }
       }
       
-      return UserStickers.fromFirestore(doc);
+      return UserFlow.fromFirestore(doc);
     } catch (e) {
-      print('Error getting user stickers: $e');
-      // Create a fallback stickers object to prevent null issues
-      print('Creating fallback stickers object due to error');
-      return UserStickers(
+      print('Error getting user flow: $e');
+      // Create a fallback flow object to prevent null issues
+      print('Creating fallback flow object due to error');
+      return UserFlow(
         userId: _userId!,
         email: _userEmail ?? '$_userId@anonymous.user',
-        stickers: 0,
+        flow: 0,
         earnedFromDays: [],
       );
     }
   }
   
-  // Add sticker for completed day
-  Future<bool> addStickerForDay(int day) async {
+  // Add flow for completed day
+  Future<bool> addFlowForDay(int day) async {
     if (_userId == null) {
-      print('Cannot add sticker: userId is null');
+      print('Cannot add flow: userId is null');
       return false;
     }
     
     // Use a default email for anonymous users
     final email = _userEmail ?? '$_userId@anonymous.user';
-    print('Adding sticker for day $day - START');
+    print('Adding flow for day $day - START');
     print('User ID: $_userId, Email: $email');
     
     try {
-      // Get or create user stickers
-      UserStickers stickers;
-      final userStickers = await getUserStickers();
+      // Get or create user flow
+      UserFlow flow;
+      final userFlow = await getUserFlow();
       
-      if (userStickers == null) {
-        print('Cannot add sticker: stickers is null - creating new stickers document');
-        stickers = UserStickers(
+      if (userFlow == null) {
+        print('Cannot add flow: flow is null - creating new flow document');
+        flow = UserFlow(
           userId: _userId!,
           email: email,
-          stickers: 0,
+          flow: 0,
           earnedFromDays: [],
         );
         
-        // Try to save the new stickers document
+        // Try to save the new flow document
         try {
-          await _stickersCollection.doc(_userId).set(stickers.toFirestore());
-          print('Created new stickers document successfully');
+          await _flowCollection.doc(_userId).set(flow.toFirestore());
+          print('Created new flow document successfully');
         } catch (e) {
-          print('Failed to create initial stickers document: $e');
+          print('Failed to create initial flow document: $e');
           print('Will try to continue with in-memory object');
         }
       } else {
-        stickers = userStickers;
+        flow = userFlow;
       }
       
-      // Check if sticker already awarded for this day
-      if (stickers.hasStickerForDay(day)) {
-        print('Sticker already awarded for day $day');
-        return true; // Already has sticker
+      // Check if flow already awarded for this day
+      if (flow.hasFlowForDay(day)) {
+        print('Flow already awarded for day $day');
+        return true; // Already has flow
       }
       
-      print('Adding new sticker for day $day');
+      print('Adding new flow for day $day');
       
-      // Update stickers
-      final updatedStickers = stickers.addStickerForDay(day);
+      // Update flow
+      final updatedFlow = flow.addFlowForDay(day);
       
-      print('Updated stickers object in memory:');
-      print('- Total stickers: ${updatedStickers.stickers}');
-      print('- Earned from days: ${updatedStickers.earnedFromDays}');
+      print('Updated flow object in memory:');
+      print('- Total flow: ${updatedFlow.flow}');
+      print('- Earned from days: ${updatedFlow.earnedFromDays}');
       
       // Use set with merge to ensure all fields are present
       try {
         // First make sure the document exists
-        final docExists = (await _stickersCollection.doc(_userId).get()).exists;
+        final docExists = (await _flowCollection.doc(_userId).get()).exists;
         
         if (!docExists) {
-          print('Stickers document doesn\'t exist yet, creating it first');
-          await _stickersCollection.doc(_userId).set({
+          print('Flow document doesn\'t exist yet, creating it first');
+          await _flowCollection.doc(_userId).set({
             'userId': _userId,
             'email': email,
-            'stickers': 0,
+            'flow': 0,
             'earnedFromDays': [],
-            'stickerAchievements': {},
+            'flowAchievements': {},
             'createdAt': FieldValue.serverTimestamp(),
           });
         }
         
-        // Now update with the new sticker
-        await _stickersCollection.doc(_userId).set({
+        // Now update with the new flow
+        await _flowCollection.doc(_userId).set({
           'userId': _userId,
           'email': email,
-          'stickers': updatedStickers.stickers,
-          'earnedFromDays': updatedStickers.earnedFromDays,
+          'flow': updatedFlow.flow,
+          'earnedFromDays': updatedFlow.earnedFromDays,
           'lastUpdated': FieldValue.serverTimestamp(),
-          'stickerAchievements': updatedStickers.stickerAchievements,
+          'flowAchievements': updatedFlow.flowAchievements,
         }, SetOptions(merge: true));
         
-        print('Sticker added successfully for day $day. Total stickers: ${updatedStickers.stickers}');
+        print('Flow added successfully for day $day. Total flow: ${updatedFlow.flow}');
         
-        // Verify the sticker was actually saved
-        final verifyStickers = await getUserStickers();
-        if (verifyStickers != null) {
-          final stickerVerified = verifyStickers.hasStickerForDay(day);
-          print('Verification - Sticker for day $day exists: $stickerVerified');
-          print('Verification - Total stickers: ${verifyStickers.stickers}');
+        // Verify the flow was actually saved
+        final verifyFlow = await getUserFlow();
+        if (verifyFlow != null) {
+          final flowVerified = verifyFlow.hasFlowForDay(day);
+          print('Verification - Flow for day $day exists: $flowVerified');
+          print('Verification - Total flow: ${verifyFlow.flow}');
           
-          if (!stickerVerified) {
-            print('WARNING: Sticker verification failed - trying direct update method');
+          if (!flowVerified) {
+            print('WARNING: Flow verification failed - trying direct update method');
             // Try direct update instead of set with merge
-            await _stickersCollection.doc(_userId).update({
-              'stickers': FieldValue.increment(1),
+            await _flowCollection.doc(_userId).update({
+              'flow': FieldValue.increment(1),
               'earnedFromDays': FieldValue.arrayUnion([day]),
               'lastUpdated': FieldValue.serverTimestamp(),
             });
             
             // Verify again
-            final finalCheck = await getUserStickers();
+            final finalCheck = await getUserFlow();
             if (finalCheck != null) {
-              print('Final verification - Sticker for day $day exists: ${finalCheck.hasStickerForDay(day)}');
+              print('Final verification - Flow for day $day exists: ${finalCheck.hasFlowForDay(day)}');
               
               // If still failing, try one more approach with a completely new document
-              if (!finalCheck.hasStickerForDay(day)) {
-                print('WARNING: Both methods failed. Trying to recreate stickers document');
+              if (!finalCheck.hasFlowForDay(day)) {
+                print('WARNING: Both methods failed. Trying to recreate flow document');
                 
-                // Create a complete new document with the sticker included
-                final newStickers = UserStickers(
+                // Create a complete new document with the flow included
+                final newFlow = UserFlow(
                   userId: _userId!,
                   email: email,
-                  stickers: 1,
+                  flow: 1,
                   earnedFromDays: [day],
                 );
                 
-                await _stickersCollection.doc(_userId).set(newStickers.toFirestore());
+                await _flowCollection.doc(_userId).set(newFlow.toFirestore());
                 print('Complete document recreation attempted');
               }
             }
           }
         }
         
-        // Add achievement if needed (example: first sticker, 5 stickers, etc)
-        if (updatedStickers.stickers == 1) {
-          await _addStickerAchievement('first_sticker', 'First Sticker Earned!');
-        } else if (updatedStickers.stickers == 5) {
-          await _addStickerAchievement('five_stickers', 'Five Stickers Collection!');
-        } else if (updatedStickers.stickers == 10) {
-          await _addStickerAchievement('ten_stickers', 'Ten Stickers Master!');
+        // Add achievement if needed (example: first flow, 5 flow, etc)
+        if (updatedFlow.flow == 1) {
+          await _addFlowAchievement('first_flow', 'First Flow Earned!');
+        } else if (updatedFlow.flow == 5) {
+          await _addFlowAchievement('five_flow', 'Five Flow Collection!');
+        } else if (updatedFlow.flow == 10) {
+          await _addFlowAchievement('ten_flow', 'Ten Flow Master!');
         }
         
         return true;
       } catch (e) {
-        print('Error saving sticker to Firestore: $e');
+        print('Error saving flow to Firestore: $e');
         print('Stack trace: ${StackTrace.current}');
         
         // Try one final desperate approach - recreate the entire document
         try {
-          print('Last resort - recreating entire stickers document with the new sticker');
-          final lastResortStickers = UserStickers(
+          print('Last resort - recreating entire flow document with the new flow');
+          final lastResortFlow = UserFlow(
             userId: _userId!,
             email: email,
-            stickers: 1,
+            flow: 1,
             earnedFromDays: [day],
           );
           
-          await _stickersCollection.doc(_userId).set(lastResortStickers.toFirestore());
-          print('Last resort approach completed');
+          await _flowCollection.doc(_userId).set(lastResortFlow.toFirestore());
+          print('Last resort document recreation completed');
           return true;
-        } catch (e) {
-          print('Even last resort failed: $e');
+        } catch (finalError) {
+          print('Final attempt failed: $finalError');
           return false;
         }
       }
     } catch (e) {
-      print('Error adding sticker: $e');
+      print('Error adding flow for day $day: $e');
       print('Stack trace: ${StackTrace.current}');
       return false;
     }
   }
   
-  // Add sticker achievement
-  Future<bool> _addStickerAchievement(String achievementId, String title) async {
-    if (_userId == null) return false;
+  // Private helper method to add flow achievements
+  Future<void> _addFlowAchievement(String achievementId, String title) async {
+    if (_userId == null) return;
     
     try {
-      print('Adding sticker achievement: $achievementId - $title');
+      // Check if user already has this achievement
+      final userFlow = await getUserFlow();
+      if (userFlow == null) return;
       
-      final stickers = await getUserStickers();
-      if (stickers == null) return false;
-      
-      // Check if achievement already awarded
-      final achievements = stickers.stickerAchievements;
+      final achievements = userFlow.flowAchievements;
       if (achievements.containsKey(achievementId)) {
-        return true; // Already has this achievement
+        print('User already has achievement: $achievementId');
+        return;
       }
       
-      // Create updated achievements map
-      final updatedAchievements = Map<String, dynamic>.from(achievements);
-      updatedAchievements[achievementId] = {
-        'title': title,
-        'earnedAt': FieldValue.serverTimestamp(),
-      };
-      
-      // Update stickers document
-      await _stickersCollection.doc(_userId).update({
-        'stickerAchievements': updatedAchievements,
-        'lastUpdated': FieldValue.serverTimestamp(),
-      });
-      
-      print('Achievement added successfully: $achievementId');
-      return true;
-    } catch (e) {
-      print('Error adding achievement: $e');
-      return false;
-    }
-  }
-  
-  // Get all user achievements
-  Future<List<Map<String, dynamic>>> getUserAchievements() async {
-    if (_userId == null) return [];
-    
-    try {
-      final stickers = await getUserStickers();
-      if (stickers == null) return [];
-      
-      final achievements = <Map<String, dynamic>>[];
-      stickers.stickerAchievements.forEach((key, value) {
-        if (value is Map) {
-          achievements.add({
-            'id': key,
-            'title': value['title'] ?? 'Unknown Achievement',
-            'earnedAt': value['earnedAt'] ?? Timestamp.now(),
-          });
+      // Add the achievement
+      print('Adding flow achievement: $achievementId - $title');
+      await _flowCollection.doc(_userId).update({
+        'flowAchievements.$achievementId': {
+          'title': title,
+          'earnedAt': FieldValue.serverTimestamp(),
         }
       });
       
-      // Sort by earned date (newest first)
-      achievements.sort((a, b) {
-        final aTimestamp = a['earnedAt'] as Timestamp;
-        final bTimestamp = b['earnedAt'] as Timestamp;
-        return bTimestamp.compareTo(aTimestamp);
-      });
-      
-      return achievements;
+      print('Successfully added flow achievement: $achievementId');
     } catch (e) {
-      print('Error getting user achievements: $e');
+      print('Error adding flow achievement: $e');
+    }
+  }
+  
+  // For admin: Get all user flow
+  Future<List<UserFlow>> getAllUserFlow() async {
+    try {
+      // Only admins can get all user flow
+      if (!await isAdmin()) return [];
+      
+      final querySnapshot = await _flowCollection.get();
+      return querySnapshot.docs
+          .map((doc) => UserFlow.fromFirestore(doc))
+          .toList();
+    } catch (e) {
+      print('Error getting all user flow: $e');
       return [];
     }
   }
@@ -829,11 +809,11 @@ class MeditationService {
         if (progress.completedDays.contains(day)) {
           print('Day $day is already marked as completed in user progress');
           
-          // Check if sticker exists anyway
-          final stickers = await getUserStickers();
-          if (stickers != null && !stickers.hasStickerForDay(day)) {
-            print('Day completed but sticker missing - adding sticker for day $day');
-            await addStickerForDay(day);
+          // Check if flow exists anyway
+          final flow = await getUserFlow();
+          if (flow != null && !flow.hasFlowForDay(day)) {
+            print('Day completed but flow missing - adding flow for day $day');
+            await addFlowForDay(day);
             return true;
           }
           
@@ -1027,7 +1007,7 @@ class MeditationService {
     return unlockTime;
   }
   
-  // Update the current day if the timer has expired
+  // Update the current day if needed (formerly time-based)
   Future<bool> updateCurrentDayIfTimerExpired() async {
     try {
       if (_userId == null) {
@@ -1035,9 +1015,9 @@ class MeditationService {
         return false;
       }
       
-      print('Checking if timer has expired to update current day...');
+      print('Checking for day unlocks...');
       final progress = await getUserProgress();
-      final stickers = await getUserStickers();
+      final flow = await getUserFlow();
       
       if (progress == null) {
         print('No progress data found');
@@ -1045,14 +1025,12 @@ class MeditationService {
       }
       
       print('Current progress - currentDay: ${progress.currentDay}, lastCompletedDay: ${progress.lastCompletedDay}');
-      print('Can unlock next day: ${progress.canUnlockNextDay()}');
-      print('Hours since last completion: ${progress.hoursSinceLastCompletion()}');
-      print('User has ${stickers?.stickers ?? 0} stickers');
+      print('User has ${flow?.flow ?? 0} flow');
       
-      // Check if we should unlock based on stickers
-      if (stickers != null && stickers.stickers > 0 && progress.currentDay < stickers.stickers + 1) {
-        final nextDay = stickers.stickers + 1;
-        print('Unlocking day $nextDay based on sticker count (${stickers.stickers})');
+      // Check if we should unlock based on flow (always allow this)
+      if (flow != null && flow.flow > 0 && progress.currentDay < flow.flow + 1) {
+        final nextDay = flow.flow + 1;
+        print('Unlocking day $nextDay based on flow count (${flow.flow})');
         
         // Get current server time
         final serverTimestamp = FieldValue.serverTimestamp();
@@ -1060,25 +1038,24 @@ class MeditationService {
         // Update progress with fixes - set both currentDay and lastCompletedDay if needed
         Map<String, dynamic> updates = {
           'currentDay': nextDay,
-          'timeUnlocked': serverTimestamp,
           'lastUpdated': serverTimestamp
         };
         
-        // Fix lastCompletedDay if it's inconsistent with stickers
-        if (progress.lastCompletedDay < stickers.stickers) {
-          updates['lastCompletedDay'] = stickers.stickers;
-          print('Fixing lastCompletedDay to match sticker count: ${stickers.stickers}');
+        // Fix lastCompletedDay if it's inconsistent with flow
+        if (progress.lastCompletedDay < flow.flow) {
+          updates['lastCompletedDay'] = flow.flow;
+          print('Fixing lastCompletedDay to match flow count: ${flow.flow}');
         }
         
         await _progressCollection.doc(_userId).update(updates);
-        print('Current day updated to $nextDay based on stickers');
+        print('Current day updated to $nextDay based on flow');
         return true;
       }
       
-      // FORCE UNLOCK: If lastCompletedDay > 0 and currentDay is behind, unlock anyway
+      // Always unlock the next day if lastCompletedDay > 0
       final nextDay = progress.lastCompletedDay + 1;
       if (progress.lastCompletedDay > 0 && progress.currentDay < nextDay) {
-        print('Force unlocking day $nextDay because it should be unlocked already');
+        print('Unlocking day $nextDay');
         
         // Get current server time
         final serverTimestamp = FieldValue.serverTimestamp();
@@ -1086,55 +1063,17 @@ class MeditationService {
         // Update the user's progress with the new current day
         await _progressCollection.doc(_userId).update({
           'currentDay': nextDay,
-          'timeUnlocked': serverTimestamp,
-          'lastUpdated': serverTimestamp
-        });
-        
-        print('Current day force-updated to $nextDay');
-        return true;
-      }
-      // Regular check: If 24 hours have passed since last completion, unlock the next day
-      else if (progress.canUnlockNextDay()) {
-        // For day 2, if we have a sticker, unlock regardless of lastCompletedDay
-        if (nextDay == 2 && stickers != null && stickers.stickers > 0) {
-          print('Unlocking day 2 based on having completed day 1 (sticker)');
-          
-          // Get current server time
-          final serverTimestamp = FieldValue.serverTimestamp();
-          
-          // Update fixing both fields for consistency
-          await _progressCollection.doc(_userId).update({
-            'currentDay': 2,
-            'lastCompletedDay': 1, // Fix the lastCompletedDay
-            'timeUnlocked': serverTimestamp,
-            'lastUpdated': serverTimestamp
-          });
-          
-          print('Current day updated to 2 and fixed lastCompletedDay to 1');
-          return true;
-        }
-        
-        print('Timer expired, unlocking day $nextDay');
-        
-        // Get current server time
-        final serverTimestamp = FieldValue.serverTimestamp();
-        
-        // Update the user's progress with the new current day
-        await _progressCollection.doc(_userId).update({
-          'currentDay': nextDay,
-          'timeUnlocked': serverTimestamp,
           'lastUpdated': serverTimestamp
         });
         
         print('Current day updated to $nextDay');
         return true;
-      } else {
-        print('Timer not expired yet');
-        print('Time since last completion (hours): ${progress.hoursSinceLastCompletion()}');
-        return false;
       }
+      
+      print('No days to unlock at this time');
+      return false;
     } catch (e) {
-      print('Error updating current day after timer expiry: $e');
+      print('Error updating current day: $e');
       print('Stack trace: ${StackTrace.current}');
       return false;
     }
@@ -1200,39 +1139,29 @@ class MeditationService {
       
       print('Force unlocking day $day');
       final progress = await getUserProgress();
-      final stickers = await getUserStickers();
+      final flow = await getUserFlow();
       
       if (progress == null) {
         print('No progress data found');
         return false;
       }
       
-      // Check if we should allow unlocking based on stickers or lastCompletedDay
-      bool canUnlock = false;
-      int expectedDay = 0;
+      // Relaxed logic to make unlocking more reliable
+      bool canUnlock = true; // Default to allowing unlock
       
-      // First check based on stickers
-      if (stickers != null && stickers.stickers > 0) {
-        expectedDay = stickers.stickers + 1;
-        canUnlock = day == expectedDay;
-        print('Based on stickers ($stickers.stickers), next day to unlock is: $expectedDay. Can unlock: $canUnlock');
-      }
-      
-      // If not determined by stickers, check based on lastCompletedDay
-      if (!canUnlock && progress.lastCompletedDay > 0) {
-        expectedDay = progress.lastCompletedDay + 1;
-        canUnlock = day == expectedDay;
-        print('Based on lastCompletedDay (${progress.lastCompletedDay}), next day to unlock is: $expectedDay. Can unlock: $canUnlock');
-      }
-      
-      // If we can't unlock based on either, but this is day 2 and we have a sticker, force it
-      if (!canUnlock && day == 2 && stickers != null && stickers.stickers > 0) {
-        canUnlock = true;
-        print('Special case: Forcing unlock of Day 2 because user has completed Day 1 (has sticker)');
+      // Basic validation - only unlock next day or a day user should have access to
+      if (day > progress.currentDay + 1) {
+        // Don't allow unlocking more than one day ahead
+        canUnlock = false;
+        print('Cannot unlock day $day - it is more than one day ahead of current day ${progress.currentDay}');
+      } else if (day <= progress.lastCompletedDay) {
+        // Don't need to unlock days that are already completed
+        print('Day $day is already completed, no need to unlock');
+        return true;
       }
       
       if (!canUnlock) {
-        print('Cannot force unlock day $day - not eligible for unlocking');
+        print('Cannot force unlock day $day - validation failed');
         return false;
       }
       
@@ -1246,10 +1175,10 @@ class MeditationService {
         'lastUpdated': serverTimestamp
       };
       
-      // If lastCompletedDay is 0 but we have stickers, set lastCompletedDay to day-1
-      if (progress.lastCompletedDay == 0 && stickers != null && stickers.stickers > 0 && day > 1) {
-        updates['lastCompletedDay'] = day - 1;
-        print('Fixing lastCompletedDay to ${day - 1}');
+      // If day is exactly lastCompletedDay + 1, update lastCompletedDay to day-1 to ensure proper sequence
+      if (day == progress.lastCompletedDay + 1 && day > 1 && !progress.completedDays.contains(day - 1)) {
+        updates['completedDays'] = FieldValue.arrayUnion([day - 1]);
+        print('Adding day ${day - 1} to completedDays array for proper sequence');
       }
       
       await _progressCollection.doc(_userId).update(updates);
@@ -1287,5 +1216,68 @@ class MeditationService {
     } catch (e) {
       print('Error creating fallback content: $e');
     }
+  }
+
+  // Method for completion verification
+  Future<bool> verifyDayCompletion(int day) async {
+    try {
+      // Check if user has the flow for this day
+      final flow = await getUserFlow();
+      if (flow != null) {
+        print('Flow verification - User has ${flow.flow} flow total');
+        print('Has flow for day $day: ${flow.hasFlowForDay(day)}');
+      }
+      
+      return true;
+    } catch (e) {
+      print('Error completing day: $e');
+      print('Stack trace: ${StackTrace.current}');
+      return false;
+    }
+  }
+
+  // Check if user can complete a new day today based on client-side date
+  Future<bool> canCompleteNewDayToday() async {
+    if (_userId == null) return false;
+    
+    try {
+      // Get the user's progress
+      final progress = await getUserProgress();
+      if (progress == null) return true; // First day is always allowed
+      
+      // If user hasn't completed any day yet, always allow the first completion
+      if (progress.lastCompletedDay == 0) return true;
+      
+      // Get the current client-side date (without time)
+      final currentDate = DateTime.now();
+      final today = DateTime(currentDate.year, currentDate.month, currentDate.day);
+      
+      // Get the last completion date from Firestore (stored as timestamp)
+      final lastCompletionTimestamp = progress.lastCompletedAt;
+      final lastCompletionDate = DateTime(
+        lastCompletionTimestamp.toDate().year,
+        lastCompletionTimestamp.toDate().month,
+        lastCompletionTimestamp.toDate().day
+      );
+      
+      // Check if the last completion was on a different day
+      // If it's a different day, allow new completion
+      return today.isAfter(lastCompletionDate);
+    } catch (e) {
+      print('Error checking if user can complete new day: $e');
+      return false;
+    }
+  }
+
+  // Get unlock time settings for the user
+  Future<dynamic> getUnlockTimeSettings() async {
+    // Since we removed time restrictions, return null
+    return null;
+  }
+
+  // Save unlock time settings for the user
+  Future<bool> saveUnlockTimeSettings(dynamic timeSettings) async {
+    // Since we removed time restrictions, just return success
+    return true;
   }
 } 

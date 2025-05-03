@@ -242,7 +242,7 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> w
         _isLoading = true;
       });
       
-      final success = await _userManagementService.deleteUser(userId, userEmail);
+      final success = await _userManagementService.deleteUser(userId);
       
       if (mounted) {
         if (success) {

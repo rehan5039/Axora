@@ -11,16 +11,19 @@ class UserManagementService {
   
   // Collection references
   CollectionReference get _usersCollection => _firestore.collection('users');
-  CollectionReference get _userProfilesCollection => _firestore.collection('user_profiles');
   CollectionReference get _adminsCollection => _firestore.collection('admins');
+  CollectionReference get _progressCollection => _firestore.collection('meditation_progress');
+  CollectionReference get _meditationFlowCollection => _firestore.collection('meditation_flow');
+  CollectionReference get _userProfilesCollection => _firestore.collection('user_profiles');
+  CollectionReference get _userStatsCollection => _firestore.collection('user_stats');
   CollectionReference get _userManagementCollection => _firestore.collection('user_management');
-  CollectionReference get _meditationProgressCollection => _firestore.collection('meditation_progress');
-  CollectionReference get _meditationStickersCollection => _firestore.collection('meditation_stickers');
   
   // Check if current user is admin
   Future<bool> isAdmin() async {
-    if (_userId == null) return false;
-    final adminDoc = await _adminsCollection.doc(_userId).get();
+    final user = _auth.currentUser;
+    if (user == null) return false;
+    
+    final adminDoc = await _adminsCollection.doc(user.uid).get();
     return adminDoc.exists;
   }
   
@@ -111,15 +114,32 @@ class UserManagementService {
     }
   }
   
-  // Delete a user account
-  Future<bool> deleteUser(String userId, String userEmail) async {
+  // Delete a user completely (admin only)
+  Future<bool> deleteUser(String userId) async {
     try {
       if (!await isAdmin()) {
-        throw Exception('Not authorized to delete users');
+        print('Only admins can delete users');
+        return false;
       }
       
-      // Delete user document
-      await _usersCollection.doc(userId).delete();
+      print('Starting deletion process for user: $userId');
+      
+      // Delete Firestore data
+      // Delete user auth data and all related collections
+      
+      // Delete meditation progress if exists
+      try {
+        await _progressCollection.doc(userId).delete();
+      } catch (e) {
+        print('Error deleting meditation progress: $e');
+      }
+      
+      // Delete meditation flow if exists
+      try {
+        await _meditationFlowCollection.doc(userId).delete();
+      } catch (e) {
+        print('Error deleting meditation flow: $e');
+      }
       
       // Delete user profile if exists
       try {
@@ -128,43 +148,35 @@ class UserManagementService {
         print('Error deleting user profile: $e');
       }
       
-      // Delete meditation progress if exists
+      // Delete user stats if exists
       try {
-        await _meditationProgressCollection.doc(userId).delete();
+        await _userStatsCollection.doc(userId).delete();
       } catch (e) {
-        print('Error deleting meditation progress: $e');
+        print('Error deleting user stats: $e');
       }
       
-      // Delete meditation stickers if exists
+      // Delete user document itself
       try {
-        await _meditationStickersCollection.doc(userId).delete();
+        await _usersCollection.doc(userId).delete();
       } catch (e) {
-        print('Error deleting meditation stickers: $e');
+        print('Error deleting user document: $e');
       }
       
-      // Remove from admins if they were an admin
+      // Delete from admins collection if admin
       try {
         final adminDoc = await _adminsCollection.doc(userId).get();
         if (adminDoc.exists) {
           await _adminsCollection.doc(userId).delete();
         }
       } catch (e) {
-        print('Error removing from admins: $e');
+        print('Error checking/deleting admin status: $e');
       }
       
-      // Log admin action
-      await _userManagementCollection.add({
-        'action': 'delete_user',
-        'targetUserId': userId,
-        'targetUserEmail': userEmail,
-        'performedBy': _userId,
-        'performedByEmail': _userEmail,
-        'timestamp': FieldValue.serverTimestamp(),
-      });
+      print('Successfully deleted Firestore data for user $userId');
       
       return true;
     } catch (e) {
-      print('Error deleting user: $e');
+      print('Error in deleteUser: $e');
       return false;
     }
   }
@@ -232,31 +244,31 @@ class UserManagementService {
           
           // Delete meditation progress if exists
           try {
-            final progressDoc = await _meditationProgressCollection.doc(userId).get();
+            final progressDoc = await _progressCollection.doc(userId).get();
             if (progressDoc.exists) {
-              await _meditationProgressCollection.doc(userId).delete();
+              await _progressCollection.doc(userId).delete();
               print('Successfully deleted meditation_progress for $userId');
             }
           } catch (e) {
             print('Error deleting meditation_progress for $userId: $e');
           }
           
-          // Delete meditation stickers if exists
+          // Delete meditation flow if exists
           try {
-            final stickersDoc = await _meditationStickersCollection.doc(userId).get();
-            if (stickersDoc.exists) {
-              await _meditationStickersCollection.doc(userId).delete();
-              print('Successfully deleted meditation_stickers for $userId');
+            final flowDoc = await _meditationFlowCollection.doc(userId).get();
+            if (flowDoc.exists) {
+              await _meditationFlowCollection.doc(userId).delete();
+              print('Successfully deleted meditation_flow for $userId');
             }
           } catch (e) {
-            print('Error deleting meditation_stickers for $userId: $e');
+            print('Error deleting meditation_flow for $userId: $e');
           }
           
           // Delete user stats if exists
           try {
-            final statsDoc = await _firestore.collection('user_stats').doc(userId).get();
+            final statsDoc = await _userStatsCollection.doc(userId).get();
             if (statsDoc.exists) {
-              await _firestore.collection('user_stats').doc(userId).delete();
+              await _userStatsCollection.doc(userId).delete();
               print('Successfully deleted user_stats for $userId');
             }
           } catch (e) {
@@ -385,6 +397,84 @@ class UserManagementService {
     } catch (e) {
       print('Error getting admin activity logs: $e');
       return [];
+    }
+  }
+  
+  // Reset user progress (admin only)
+  Future<bool> resetUserProgress(String userId) async {
+    try {
+      // Check if user is admin
+      if (!await isAdmin()) {
+        print('Only admins can reset user progress');
+        return false;
+      }
+      
+      print('Starting progress reset for user: $userId');
+      
+      // Get user email for recreation
+      String? userEmail;
+      try {
+        final userDoc = await _usersCollection.doc(userId).get();
+        if (userDoc.exists) {
+          userEmail = userDoc.get('email') as String?;
+        }
+      } catch (e) {
+        print('Error getting user email: $e');
+      }
+      
+      // Delete meditation progress if exists
+      try {
+        await _progressCollection.doc(userId).delete();
+        print('Successfully deleted meditation_progress for $userId');
+      } catch (e) {
+        print('Error deleting meditation_progress for $userId: $e');
+      }
+      
+      // Delete meditation flow if exists
+      try {
+        final flowDoc = await _meditationFlowCollection.doc(userId).get();
+        if (flowDoc.exists) {
+          await _meditationFlowCollection.doc(userId).delete();
+          print('Successfully deleted meditation_flow for $userId');
+        }
+      } catch (e) {
+        print('Error deleting meditation_flow for $userId: $e');
+      }
+      
+      // Recreate progress with initial values if we have email
+      if (userEmail != null) {
+        try {
+          // Create new progress document
+          await _progressCollection.doc(userId).set({
+            'userId': userId,
+            'email': userEmail,
+            'currentDay': 1,
+            'lastCompletedDay': 0,
+            'createdAt': FieldValue.serverTimestamp(),
+            'lastCompletedAt': null,
+          });
+          
+          // Create new flow document
+          await _meditationFlowCollection.doc(userId).set({
+            'userId': userId,
+            'email': userEmail,
+            'flow': 0,
+            'earnedFromDays': [],
+            'flowAchievements': {},
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+          
+          print('Successfully recreated initial documents for $userId');
+        } catch (e) {
+          print('Error recreating documents: $e');
+          return false;
+        }
+      }
+      
+      return true;
+    } catch (e) {
+      print('Error in resetUserProgress: $e');
+      return false;
     }
   }
 } 

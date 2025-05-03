@@ -69,41 +69,20 @@ class UserProgress {
   }
   
   bool canUnlockNextDay() {
-    if (lastCompletedDay == 0) return true;
-    
-    final now = Timestamp.now();
-    final diff = now.seconds - lastCompletedAt.seconds;
-    
-    // Check if 24 hours (86400 seconds) have passed
-    // Use a slightly lower threshold (23 hours = 82800 seconds) to account for timing discrepancies
-    return diff >= 82800; // 23 hours in seconds
+    // Always allow unlocking the next day regardless of time passed
+    return true;
   }
   
   // Get time remaining in seconds until next day unlocks
   int getSecondsUntilNextDayUnlocks() {
-    if (lastCompletedDay == 0) return 0;
-    
-    final now = Timestamp.now();
-    final unlockTime = Timestamp.fromMillisecondsSinceEpoch(
-      lastCompletedAt.millisecondsSinceEpoch + (24 * 60 * 60 * 1000)
-    );
-    
-    final remainingSeconds = unlockTime.seconds - now.seconds;
-    
-    // Return 0 if time has expired
-    return remainingSeconds > 0 ? remainingSeconds : 0;
+    // Always return 0 since there's no time restriction
+    return 0;
   }
   
   // Get formatted string of time remaining until next day unlocks
   String getFormattedTimeRemaining() {
-    final totalSeconds = getSecondsUntilNextDayUnlocks();
-    if (totalSeconds <= 0) return "00h 00m 00s";
-    
-    final hours = totalSeconds ~/ 3600;
-    final minutes = (totalSeconds % 3600) ~/ 60;
-    final seconds = totalSeconds % 60;
-    
-    return '${hours}h ${minutes.toString().padLeft(2, '0')}m ${seconds.toString().padLeft(2, '0')}s';
+    // Always return 0 since there's no time restriction
+    return "00h 00m 00s";
   }
   
   // Check if a specific day is completed

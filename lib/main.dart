@@ -85,24 +85,15 @@ class _MyAppState extends State<MyApp> {
   }
 
   void _startUnlockCheckTimer() {
-    // Cancel any existing timer
-    _unlockCheckTimer?.cancel();
-    
-    // Check for unlocks every 15 minutes
-    _unlockCheckTimer = Timer.periodic(const Duration(minutes: 15), (_) async {
-      // Only check if the user is logged in
-      if (FirebaseAuth.instance.currentUser != null) {
-        try {
-          debugPrint('Scheduled check: Checking if any days need to be unlocked...');
-          final result = await _meditationService.updateCurrentDayIfTimerExpired();
-          if (result) {
-            debugPrint('Scheduled check: Successfully unlocked next day!');
-          }
-        } catch (e) {
-          debugPrint('Scheduled check: Error checking for day unlocks: $e');
-        }
+    // Immediately check for unlocks and don't set a timer
+    if (FirebaseAuth.instance.currentUser != null) {
+      try {
+        debugPrint('Initial check: Checking if any days need to be unlocked...');
+        _meditationService.updateCurrentDayIfTimerExpired();
+      } catch (e) {
+        debugPrint('Initial check: Error checking for day unlocks: $e');
       }
-    });
+    }
   }
 
   @override
