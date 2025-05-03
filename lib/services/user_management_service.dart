@@ -477,4 +477,215 @@ class UserManagementService {
       return false;
     }
   }
+  
+  // Reset user account completely (admin only)
+  Future<bool> resetUserAccount(String userId) async {
+    try {
+      // Check if user is admin
+      if (!await isAdmin()) {
+        print('Only admins can reset user accounts');
+        return false;
+      }
+      
+      print('Starting complete account reset for user: $userId');
+      
+      // Get user email for recreation
+      String? userEmail;
+      try {
+        final userDoc = await _usersCollection.doc(userId).get();
+        if (userDoc.exists) {
+          userEmail = userDoc.get('email') as String?;
+        }
+      } catch (e) {
+        print('Error getting user email: $e');
+      }
+      
+      if (userEmail == null) {
+        print('Cannot reset account without user email');
+        return false;
+      }
+      
+      // Delete meditation progress
+      try {
+        await _progressCollection.doc(userId).delete();
+        print('Successfully deleted meditation_progress for $userId');
+      } catch (e) {
+        print('Error deleting meditation_progress for $userId: $e');
+      }
+      
+      // Delete meditation flow
+      try {
+        await _meditationFlowCollection.doc(userId).delete();
+        print('Successfully deleted meditation_flow for $userId');
+      } catch (e) {
+        print('Error deleting meditation_flow for $userId: $e');
+      }
+      
+      // Delete user stats
+      try {
+        await _userStatsCollection.doc(userId).delete();
+        print('Successfully deleted user_stats for $userId');
+      } catch (e) {
+        print('Error deleting user_stats for $userId: $e');
+      }
+      
+      // Delete all completed articles and audios in user_profiles
+      try {
+        final articlesDocs = await _userProfilesCollection.doc(userId).collection('completed_articles').get();
+        for (var doc in articlesDocs.docs) {
+          await doc.reference.delete();
+        }
+        
+        final audiosDocs = await _userProfilesCollection.doc(userId).collection('completed_audios').get();
+        for (var doc in audiosDocs.docs) {
+          await doc.reference.delete();
+        }
+        
+        print('Successfully deleted all completed content for $userId');
+      } catch (e) {
+        print('Error deleting completed content: $e');
+      }
+      
+      // Wait a moment to ensure deletions are processed
+      await Future.delayed(Duration(milliseconds: 500));
+      
+      // Recreate documents with initial values
+      try {
+        final now = Timestamp.now();
+        
+        // Create new progress document with all required fields
+        final progressData = {
+          'userId': userId,
+          'email': userEmail,
+          'currentDay': 1,
+          'lastCompletedDay': 0,
+          'completedDays': [],
+          'lastCompletedAt': now,
+          'createdAt': FieldValue.serverTimestamp(),
+        };
+        
+        await _progressCollection.doc(userId).set(progressData);
+        print('Successfully recreated progress document for $userId');
+        
+        // Create new flow document with all required fields
+        final flowData = {
+          'userId': userId,
+          'email': userEmail,
+          'flow': 0,
+          'earnedFromDays': [],
+          'flowAchievements': {},
+          'lastMeditationDate': now,
+          'totalFlowLost': 0,
+          'createdAt': FieldValue.serverTimestamp(),
+        };
+        
+        await _meditationFlowCollection.doc(userId).set(flowData);
+        print('Successfully recreated flow document for $userId');
+        
+        // Create new stats document with all required fields
+        final statsData = {
+          'userId': userId,
+          'email': userEmail,
+          'currentStreak': 0,
+          'longestStreak': 0,
+          'totalMinutes': 0,
+          'sessionsCompleted': 0,
+          'totalFlowLost': 0,
+          'createdAt': FieldValue.serverTimestamp(),
+        };
+        
+        await _userStatsCollection.doc(userId).set(statsData);
+        print('Successfully recreated stats document for $userId');
+        
+        // Log admin action
+        await _userManagementCollection.add({
+          'action': 'reset_user_account',
+          'targetUserId': userId,
+          'targetUserEmail': userEmail,
+          'performedBy': _userId,
+          'performedByEmail': _userEmail,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+        
+        return true;
+      } catch (e) {
+        print('Error recreating documents: $e');
+        print('Detailed error: ${e.toString()}');
+        return false;
+      }
+    } catch (e) {
+      print('Error in resetUserAccount: $e');
+      return false;
+    }
+  }
+  
+  // Edit user flow (admin only)
+  Future<bool> editUserFlow(String userId, int newFlowValue) async {
+    try {
+      // Check if user is admin
+      if (!await isAdmin()) {
+        print('Only admins can edit user flow');
+        return false;
+      }
+      
+      if (newFlowValue < 0) {
+        print('Flow value cannot be negative');
+        return false;
+      }
+      
+      print('Editing flow for user: $userId to value: $newFlowValue');
+      
+      // Get user email for logging
+      String? userEmail;
+      try {
+        final userDoc = await _usersCollection.doc(userId).get();
+        if (userDoc.exists) {
+          userEmail = userDoc.get('email') as String?;
+        }
+      } catch (e) {
+        print('Error getting user email: $e');
+      }
+      
+      // Update flow in meditation_flow collection
+      try {
+        await _meditationFlowCollection.doc(userId).update({
+          'flow': newFlowValue,
+          'lastUpdated': FieldValue.serverTimestamp(),
+        });
+        print('Successfully updated flow for $userId to $newFlowValue');
+      } catch (e) {
+        print('Error updating flow: $e');
+        return false;
+      }
+      
+      // Also update the currentStreak in user_stats to keep them in sync
+      try {
+        await _userStatsCollection.doc(userId).update({
+          'currentStreak': newFlowValue,
+          'lastUpdated': FieldValue.serverTimestamp(),
+        });
+        print('Successfully updated currentStreak for $userId to $newFlowValue');
+      } catch (e) {
+        print('Error updating currentStreak: $e');
+        // Continue anyway as the main flow update was successful
+      }
+      
+      // Log admin action
+      await _userManagementCollection.add({
+        'action': 'edit_user_flow',
+        'targetUserId': userId,
+        'targetUserEmail': userEmail,
+        'oldFlowValue': null, // We don't have the old value here
+        'newFlowValue': newFlowValue,
+        'performedBy': _userId,
+        'performedByEmail': _userEmail,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+      
+      return true;
+    } catch (e) {
+      print('Error in editUserFlow: $e');
+      return false;
+    }
+  }
 } 

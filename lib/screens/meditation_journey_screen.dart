@@ -882,80 +882,98 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
     final isDarkMode = themeProvider.isDarkMode;
     final flowCount = _userFlow?.flow ?? 0;
     
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: isDarkMode ? Colors.grey[800] : Colors.grey[200],
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 5,
-            offset: const Offset(0, 2),
+    return GestureDetector(
+      onTap: () {
+        // Show the Flow intro screen when tapped
+        Navigator.of(context).push(
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) => FlowIntroScreen(),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              const begin = Offset(0.0, 1.0);
+              const end = Offset.zero;
+              const curve = Curves.easeOutQuint;
+              var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+              var offsetAnimation = animation.drive(tween);
+              return SlideTransition(position: offsetAnimation, child: child);
+            },
           ),
-        ],
-        border: Border.all(
-          color: Colors.blue,
-          width: flowCount > 0 ? 2 : 0,
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: isDarkMode ? Colors.grey[800] : Colors.grey[200],
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 5,
+              offset: const Offset(0, 2),
+            ),
+          ],
+          border: Border.all(
+            color: Colors.blue,
+            width: flowCount > 0 ? 2 : 0,
+          ),
         ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              Image.asset(
-                'assets/images/flow_icon.png',
-                width: 30,
-                height: 30,
-                color: Colors.blue,
-              ),
-              if (flowCount > 0)
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    width: 16,
-                    height: 16,
-                    decoration: const BoxDecoration(
-                      color: Colors.green,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Icon(
-                        Icons.check,
-                        color: Colors.white,
-                        size: 12,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                Image.asset(
+                  'assets/images/flow_icon.png',
+                  width: 30,
+                  height: 30,
+                  color: Colors.blue,
+                ),
+                if (flowCount > 0)
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      width: 16,
+                      height: 16,
+                      decoration: const BoxDecoration(
+                        color: Colors.green,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Icon(
+                          Icons.check,
+                          color: Colors.white,
+                          size: 12,
+                        ),
                       ),
                     ),
                   ),
+              ],
+            ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Flow',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: isDarkMode ? Colors.white70 : Colors.black54,
+                  ),
                 ),
-            ],
-          ),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Flow',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: isDarkMode ? Colors.white70 : Colors.black54,
+                Text(
+                  flowCount.toString(),
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: flowCount > 0 ? Colors.blue : (isDarkMode ? Colors.white : Colors.black87),
+                  ),
                 ),
-              ),
-              Text(
-                flowCount.toString(),
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: flowCount > 0 ? Colors.blue : (isDarkMode ? Colors.white : Colors.black87),
-                ),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1419,6 +1437,71 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
       await prefs.setBool('shown_flow_intro', true);
     } catch (e) {
       print('Error marking flow intro as shown: $e');
+    }
+  }
+
+  // DEBUG: Test flow reduction (to be removed in production)
+  Future<void> _testFlowReduction() async {
+    try {
+      print('Testing flow reduction...');
+      
+      // Show a loading indicator
+      setState(() {
+        _isSyncingWithServer = true;
+      });
+      
+      // Manually reduce flow for testing
+      final result = await _meditationService.manuallyReduceFlowForTesting();
+      
+      if (result) {
+        // Reload user flow to update UI
+        final updatedFlow = await _meditationService.getUserFlow();
+        
+        setState(() {
+          _userFlow = updatedFlow;
+          _isSyncingWithServer = false;
+        });
+        
+        // Show a confirmation snackbar
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Flow reduced for testing. New flow: ${updatedFlow?.flow ?? 0}'),
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      } else {
+        setState(() {
+          _isSyncingWithServer = false;
+        });
+        
+        // Show an error snackbar
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Flow could not be reduced (possibly already at 0)'),
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      print('Error testing flow reduction: $e');
+      
+      setState(() {
+        _isSyncingWithServer = false;
+      });
+      
+      // Show an error snackbar
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
 } 

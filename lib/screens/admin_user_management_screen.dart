@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:axora/providers/theme_provider.dart';
 import 'package:axora/services/user_management_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AdminUserManagementScreen extends StatefulWidget {
   const AdminUserManagementScreen({super.key});
@@ -847,10 +848,37 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> w
           ],
         ),
         actions: [
+          // Close button
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('CLOSE'),
           ),
+          
+          // Reset Account button
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _showResetAccountDialog(user['id'] as String, email);
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.orange,
+            ),
+            child: const Text('RESET ACCOUNT'),
+          ),
+          
+          // Edit Flow button
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _showEditFlowDialog(user['id'] as String, email);
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.blue,
+            ),
+            child: const Text('EDIT FLOW'),
+          ),
+          
+          // Admin status toggle button
           if (!isUserAdmin)
             TextButton(
               onPressed: () {
@@ -867,6 +895,8 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> w
               },
               child: const Text('REMOVE ADMIN'),
             ),
+          
+          // Delete User button
           TextButton(
             onPressed: () {
               Navigator.pop(context);
@@ -894,6 +924,268 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> w
           child: Text(value),
         ),
       ],
+    );
+  }
+  
+  Future<void> _resetUserAccount(String userId, String userEmail) async {
+    try {
+      setState(() {
+        _isLoading = true;
+      });
+      
+      final success = await _userManagementService.resetUserAccount(userId);
+      
+      if (mounted) {
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Account reset for $userEmail'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          
+          // Refresh data
+          await _refreshData();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to reset account for $userEmail'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      print('Error resetting user account: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+  
+  Future<void> _editUserFlow(String userId, String userEmail, int newFlowValue) async {
+    try {
+      setState(() {
+        _isLoading = true;
+      });
+      
+      final success = await _userManagementService.editUserFlow(userId, newFlowValue);
+      
+      if (mounted) {
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Flow updated to $newFlowValue for $userEmail'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          
+          // Refresh data
+          await _refreshData();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to update flow for $userEmail'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      print('Error editing user flow: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+  
+  void _showResetAccountDialog(String userId, String userEmail) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reset User Account'),
+        content: Text(
+          'Are you sure you want to reset the account for $userEmail?\n\n'
+          'This will reset all progress, flows, and statistics to the initial state. '
+          'This action cannot be undone.',
+          style: const TextStyle(color: Colors.orange),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('CANCEL'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _resetUserAccount(userId, userEmail);
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.orange,
+            ),
+            child: const Text('RESET'),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  void _showEditFlowDialog(String userId, String userEmail) {
+    final TextEditingController _flowController = TextEditingController();
+    bool _isLoading = true;
+    int _currentFlow = 0;
+    
+    // Create a stateful builder to handle loading state
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setState) {
+          // Function to fetch current flow
+          Future<void> _fetchCurrentFlow() async {
+            setState(() {
+              _isLoading = true;
+            });
+            
+            try {
+              // Get the user's current flow from Firestore
+              final flowDoc = await FirebaseFirestore.instance
+                  .collection('meditation_flow')
+                  .doc(userId)
+                  .get();
+              
+              if (flowDoc.exists && flowDoc.data() != null) {
+                final flowData = flowDoc.data()!;
+                _currentFlow = (flowData['flow'] as num?)?.toInt() ?? 0;
+                _flowController.text = _currentFlow.toString();
+              } else {
+                _currentFlow = 0;
+                _flowController.text = '0';
+              }
+            } catch (e) {
+              print('Error fetching flow: $e');
+              _currentFlow = 0;
+              _flowController.text = '0';
+            }
+            
+            if (mounted) {
+              setState(() {
+                _isLoading = false;
+              });
+            }
+          }
+          
+          // Fetch current flow when dialog opens
+          if (_isLoading) {
+            _fetchCurrentFlow();
+          }
+          
+          return AlertDialog(
+            title: const Text('Edit User Flow'),
+            content: _isLoading
+                ? const Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircularProgressIndicator(),
+                        SizedBox(height: 16),
+                        Text('Fetching current flow...'),
+                      ],
+                    ),
+                  )
+                : Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('Enter new flow value for $userEmail:'),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Current Flow: $_currentFlow',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _flowController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Flow Value',
+                          hintText: 'Enter a number (0 or greater)',
+                        ),
+                      ),
+                    ],
+                  ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('CANCEL'),
+              ),
+              if (!_isLoading)
+                TextButton(
+                  onPressed: () {
+                    final flowText = _flowController.text.trim();
+                    if (flowText.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please enter a flow value'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                      return;
+                    }
+                    
+                    final flowValue = int.tryParse(flowText);
+                    if (flowValue == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please enter a valid number'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                      return;
+                    }
+                    
+                    if (flowValue < 0) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Flow value cannot be negative'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                      return;
+                    }
+                    
+                    Navigator.pop(context);
+                    _editUserFlow(userId, userEmail, flowValue);
+                  },
+                  child: const Text('UPDATE'),
+                ),
+            ],
+          );
+        },
+      ),
     );
   }
 } 

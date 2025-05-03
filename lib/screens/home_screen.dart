@@ -636,6 +636,30 @@ class _StatisticsTabState extends State<StatisticsTab> {
       
       final stats = await _statsService.getUserStats();
       
+      // Also get the current flow to ensure stats are in sync
+      final meditationService = MeditationService();
+      final userFlow = await meditationService.getUserFlow();
+      
+      // If both were loaded successfully, verify they're in sync
+      if (stats != null && userFlow != null) {
+        // If current streak doesn't match flow, sync them
+        if (stats.currentStreak != userFlow.flow) {
+          print('Current streak (${stats.currentStreak}) does not match flow (${userFlow.flow}). Syncing...');
+          await _statsService.syncCurrentStreakWithFlow(userFlow.flow);
+          
+          // Reload stats after syncing
+          final updatedStats = await _statsService.getUserStats();
+          if (mounted) {
+            setState(() {
+              _userStats = updatedStats;
+              _isLoading = false;
+              _isRefreshing = false;
+            });
+          }
+          return;
+        }
+      }
+      
       if (mounted) {
         setState(() {
           _userStats = stats;
@@ -689,7 +713,7 @@ class _StatisticsTabState extends State<StatisticsTab> {
               ),
               const SizedBox(height: 24),
               _StatItem(
-                label: 'Current Streak', 
+                label: 'Current Flow', 
                 value: '${_userStats?.currentStreak ?? 0}',
               ),
               const SizedBox(height: 16),
@@ -704,8 +728,8 @@ class _StatisticsTabState extends State<StatisticsTab> {
               ),
               const SizedBox(height: 16),
               _StatItem(
-                label: 'Longest Streak', 
-                value: '${_userStats?.longestStreak ?? 0}',
+                label: 'Total Flow Lost', 
+                value: '${_userStats?.totalFlowLost ?? 0}',
               ),
               const SizedBox(height: 24),
               Text('Badges', style: headingStyle),

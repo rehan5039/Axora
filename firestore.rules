@@ -67,8 +67,10 @@ service cloud.firestore {
         request.auth.uid == userId || isAdmin()
       );
       
-      // Allow initial creation of progress documents without restrictions
-      allow create: if request.auth != null && request.auth.uid == userId;
+      // Allow initial creation of progress documents for user themselves or by admins
+      allow create: if request.auth != null && (
+        request.auth.uid == userId || isAdmin()
+      );
       
       // For updates, remove time restriction
       allow update: if request.auth != null && (
@@ -85,29 +87,37 @@ service cloud.firestore {
         request.auth.uid == userId || isAdmin()
       );
       
-      // Allow initial creation of flow documents without restrictions
-      allow create: if request.auth != null && request.auth.uid == userId;
+      // Allow initial creation of flow documents for user themselves or by admins
+      allow create: if request.auth != null && (
+        request.auth.uid == userId || isAdmin()
+      );
       
-      // Allow updates with basic validation
+      // Allow updates with validation for the flow reduction system
       allow update: if request.auth != null && (
         request.auth.uid == userId || isAdmin()
+      ) && (
+        // When reducing flow, ensure it's not below 0
+        request.resource.data.flow >= 0
+        // Removed overly restrictive validation for lastMeditationDate which was preventing updates
       );
       
       // Allow admins to delete flow data
       allow delete: if request.auth != null && isAdmin();
     }
     
-    // User statistics collection
+    // User statistics collection - now shows "Flow" instead of "Streak" in UI
     match /user_stats/{userId} {
       // Allow read for the user's own document or admins
       allow read: if request.auth != null && (
         request.auth.uid == userId || isAdmin()
       );
       
-      // Allow initial creation of statistics documents
-      allow create: if request.auth != null && request.auth.uid == userId;
+      // Allow initial creation of statistics documents for user themselves or by admins
+      allow create: if request.auth != null && (
+        request.auth.uid == userId || isAdmin()
+      );
       
-      // Allow updates for user's own document or admins
+      // Allow updates for user's own document or admins - including totalFlowLost field
       allow update: if request.auth != null && (
         request.auth.uid == userId || isAdmin()
       );

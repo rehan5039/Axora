@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:axora/models/meditation_content.dart';
 import 'package:axora/models/user_progress.dart';
 import 'package:axora/models/user_flow.dart';
+import 'package:axora/services/stats_service.dart';
 
 class MeditationService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -431,6 +432,7 @@ class MeditationService {
           email: email,
           flow: 0,
           earnedFromDays: [],
+          lastMeditationDate: DateTime.now(),
         );
         
         try {
@@ -455,6 +457,7 @@ class MeditationService {
         email: _userEmail ?? '$_userId@anonymous.user',
         flow: 0,
         earnedFromDays: [],
+        lastMeditationDate: DateTime.now(),
       );
     }
   }
@@ -483,6 +486,7 @@ class MeditationService {
           email: email,
           flow: 0,
           earnedFromDays: [],
+          lastMeditationDate: DateTime.now(),
         );
         
         // Try to save the new flow document
@@ -500,6 +504,14 @@ class MeditationService {
       // Check if flow already awarded for this day
       if (flow.hasFlowForDay(day)) {
         print('Flow already awarded for day $day');
+        
+        // Even if flow was already awarded, update the lastMeditationDate to today
+        // This is important for the flow reduction system
+        await _flowCollection.doc(_userId).update({
+          'lastMeditationDate': Timestamp.now(),
+          'lastUpdated': FieldValue.serverTimestamp(),
+        });
+        
         return true; // Already has flow
       }
       
@@ -525,6 +537,7 @@ class MeditationService {
             'flow': 0,
             'earnedFromDays': [],
             'flowAchievements': {},
+            'lastMeditationDate': Timestamp.now(),
             'createdAt': FieldValue.serverTimestamp(),
           });
         }
@@ -535,6 +548,7 @@ class MeditationService {
           'email': email,
           'flow': updatedFlow.flow,
           'earnedFromDays': updatedFlow.earnedFromDays,
+          'lastMeditationDate': Timestamp.now(),
           'lastUpdated': FieldValue.serverTimestamp(),
           'flowAchievements': updatedFlow.flowAchievements,
         }, SetOptions(merge: true));
@@ -554,6 +568,7 @@ class MeditationService {
             await _flowCollection.doc(_userId).update({
               'flow': FieldValue.increment(1),
               'earnedFromDays': FieldValue.arrayUnion([day]),
+              'lastMeditationDate': Timestamp.now(),
               'lastUpdated': FieldValue.serverTimestamp(),
             });
             
@@ -572,6 +587,7 @@ class MeditationService {
                   email: email,
                   flow: 1,
                   earnedFromDays: [day],
+                  lastMeditationDate: DateTime.now(),
                 );
                 
                 await _flowCollection.doc(_userId).set(newFlow.toFirestore());
@@ -603,6 +619,7 @@ class MeditationService {
             email: email,
             flow: 1,
             earnedFromDays: [day],
+            lastMeditationDate: DateTime.now(),
           );
           
           await _flowCollection.doc(_userId).set(lastResortFlow.toFirestore());
@@ -1279,5 +1296,149 @@ class MeditationService {
   Future<bool> saveUnlockTimeSettings(dynamic timeSettings) async {
     // Since we removed time restrictions, just return success
     return true;
+  }
+
+  // Check if user missed a day of meditation and reduce flow if needed
+  Future<bool> checkAndReduceFlowIfDayMissed() async {
+    if (_userId == null) return false;
+    
+    try {
+      print('Checking if flow should be reduced due to missed meditation day...');
+      
+      // Get the user's flow
+      final userFlow = await getUserFlow();
+      if (userFlow == null || userFlow.flow <= 0) {
+        print('User has no flow to reduce');
+        return false;
+      }
+      
+      // If there's no last meditation date, we can't determine if a day was missed
+      if (userFlow.lastMeditationDate == null) {
+        print('No last meditation date found, cannot determine if day was missed');
+        
+        // Update the lastMeditationDate to today to start tracking
+        await _flowCollection.doc(_userId).update({
+          'lastMeditationDate': Timestamp.now(),
+          'lastUpdated': FieldValue.serverTimestamp(),
+        });
+        
+        print('Updated lastMeditationDate to now to begin tracking');
+        return false;
+      }
+      
+      // Get today's date (without time)
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      
+      // Get yesterday's date (for comparison)
+      final yesterday = DateTime(now.year, now.month, now.day - 1);
+      
+      // Get the last meditation date (without time)
+      final lastMeditation = userFlow.lastMeditationDate!;
+      final lastMeditationDay = DateTime(
+        lastMeditation.year,
+        lastMeditation.month,
+        lastMeditation.day
+      );
+      
+      print('Today: $today');
+      print('Yesterday: $yesterday');
+      print('Last meditation day: $lastMeditationDay');
+      
+      // Check if the last meditation was yesterday or earlier
+      if (lastMeditationDay.isBefore(yesterday)) {
+        // The user missed at least one day of meditation
+        // Calculate how many days were missed
+        final difference = today.difference(lastMeditationDay).inDays;
+        
+        // Cap the reduction to 1 per day check
+        final reductionAmount = 1;
+        
+        print('User missed $difference days of meditation, reducing flow by $reductionAmount');
+        
+        // Reduce the flow
+        final updatedFlow = userFlow.reduceFlow();
+        
+        // Update in Firestore - IMPORTANT: also update lastMeditationDate to today
+        // This prevents multiple reductions for the same missed day
+        await _flowCollection.doc(_userId).update({
+          'flow': updatedFlow.flow,
+          'lastMeditationDate': Timestamp.now(),
+          'lastUpdated': FieldValue.serverTimestamp(),
+          'totalFlowLost': updatedFlow.totalFlowLost,
+        });
+        
+        // Update the stats service with the total flow lost
+        final statsService = StatsService();
+        await statsService.updateTotalFlowLost(updatedFlow.totalFlowLost);
+        
+        // Also sync the current streak with the new flow value
+        await statsService.syncCurrentStreakWithFlow(updatedFlow.flow);
+        
+        print('Flow reduced from ${userFlow.flow} to ${updatedFlow.flow}');
+        print('Updated lastMeditationDate to prevent multiple reductions');
+        print('Total flow lost: ${updatedFlow.totalFlowLost}');
+        print('Current streak synced with flow value: ${updatedFlow.flow}');
+        return true;
+      } else if (lastMeditationDay.isAtSameMomentAs(yesterday)) {
+        print('Last meditation was yesterday, no reduction needed yet');
+        return false;
+      } else if (lastMeditationDay.isAtSameMomentAs(today)) {
+        print('User already meditated today, no reduction needed');
+        return false; 
+      } else {
+        print('Unusual date comparison result - for safety, no flow reduction');
+        print('User did not miss a meditation day, no flow reduction needed');
+        return false;
+      }
+    } catch (e) {
+      print('Error checking and reducing flow: $e');
+      print('Stack trace: ${StackTrace.current}');
+      return false;
+    }
+  }
+
+  // For testing: Force reduce flow regardless of lastMeditationDate
+  Future<bool> manuallyReduceFlowForTesting() async {
+    if (_userId == null) return false;
+    
+    try {
+      print('Manually reducing flow for testing...');
+      
+      // Get the user's flow
+      final userFlow = await getUserFlow();
+      if (userFlow == null || userFlow.flow <= 0) {
+        print('User has no flow to reduce');
+        return false;
+      }
+      
+      // Reduce the flow
+      final updatedFlow = userFlow.reduceFlow();
+      
+      // Update in Firestore - also update lastMeditationDate
+      await _flowCollection.doc(_userId).update({
+        'flow': updatedFlow.flow,
+        'lastMeditationDate': Timestamp.now(),
+        'lastUpdated': FieldValue.serverTimestamp(),
+        'totalFlowLost': updatedFlow.totalFlowLost,
+      });
+      
+      // Update the stats service with the total flow lost
+      final statsService = StatsService();
+      await statsService.updateTotalFlowLost(updatedFlow.totalFlowLost);
+      
+      // Also sync the current streak with the new flow value
+      await statsService.syncCurrentStreakWithFlow(updatedFlow.flow);
+      
+      print('Flow manually reduced from ${userFlow.flow} to ${updatedFlow.flow}');
+      print('Updated lastMeditationDate for consistency');
+      print('Total flow lost: ${updatedFlow.totalFlowLost}');
+      print('Current streak synced with flow value: ${updatedFlow.flow}');
+      return true;
+    } catch (e) {
+      print('Error manually reducing flow: $e');
+      print('Stack trace: ${StackTrace.current}');
+      return false;
+    }
   }
 } 

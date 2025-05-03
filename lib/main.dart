@@ -70,29 +70,85 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   Timer? _unlockCheckTimer;
+  Timer? _midnightCheckTimer;
+  DateTime? _lastMidnightCheck;
   final _meditationService = MeditationService();
 
   @override
   void initState() {
     super.initState();
-    // Check for day unlocks every hour
+    // Initialize timers
     _startUnlockCheckTimer();
+    _startMidnightCheckTimer();
   }
 
   @override
   void dispose() {
     _unlockCheckTimer?.cancel();
+    _midnightCheckTimer?.cancel();
     super.dispose();
   }
 
   void _startUnlockCheckTimer() {
-    // Immediately check for unlocks and don't set a timer
+    // Immediately check for unlocks
     if (FirebaseAuth.instance.currentUser != null) {
       try {
         debugPrint('Initial check: Checking if any days need to be unlocked...');
         _meditationService.updateCurrentDayIfTimerExpired();
       } catch (e) {
         debugPrint('Initial check: Error checking for day unlocks: $e');
+      }
+    }
+    
+    // Set up periodic timer that checks every hour for unlocks
+    _unlockCheckTimer = Timer.periodic(const Duration(hours: 1), (timer) {
+      if (FirebaseAuth.instance.currentUser != null) {
+        try {
+          // Check for day unlocks (existing functionality)
+          _meditationService.updateCurrentDayIfTimerExpired();
+        } catch (e) {
+          debugPrint('Periodic check: Error checking for day unlocks: $e');
+        }
+      }
+    });
+  }
+  
+  void _startMidnightCheckTimer() {
+    // Set current date for comparison
+    _lastMidnightCheck = DateTime.now();
+    debugPrint('Midnight check timer initialized: ${_lastMidnightCheck!.toIso8601String()}');
+    
+    // Also do an initial flow check
+    _checkForFlowReduction();
+    
+    // Check every 15 minutes for midnight transition
+    _midnightCheckTimer = Timer.periodic(const Duration(minutes: 15), (timer) {
+      if (FirebaseAuth.instance.currentUser != null) {
+        final now = DateTime.now();
+        final lastCheck = _lastMidnightCheck!;
+        
+        // Check if we've crossed midnight since last check
+        if (now.day != lastCheck.day || now.month != lastCheck.month || now.year != lastCheck.year) {
+          debugPrint('Detected day change: ${lastCheck.toIso8601String()} -> ${now.toIso8601String()}');
+          
+          // Update last check time
+          _lastMidnightCheck = now;
+          
+          // Run flow reduction check at day change
+          _checkForFlowReduction();
+        }
+      }
+    });
+  }
+  
+  void _checkForFlowReduction() async {
+    if (FirebaseAuth.instance.currentUser != null) {
+      try {
+        debugPrint('Checking if flow should be reduced due to missed meditation...');
+        final result = await _meditationService.checkAndReduceFlowIfDayMissed();
+        debugPrint('Flow reduction check result: $result');
+      } catch (e) {
+        debugPrint('Error checking for flow reduction: $e');
       }
     }
   }

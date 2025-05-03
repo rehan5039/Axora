@@ -6,6 +6,8 @@ class UserFlow {
   final int flow;
   final List<int> earnedFromDays;
   final Map<String, dynamic> flowAchievements;
+  final DateTime? lastMeditationDate;
+  final int totalFlowLost;
   
   UserFlow({
     required this.userId,
@@ -13,6 +15,8 @@ class UserFlow {
     this.flow = 0,
     this.earnedFromDays = const [],
     this.flowAchievements = const {},
+    this.lastMeditationDate,
+    this.totalFlowLost = 0,
   });
   
   factory UserFlow.fromFirestore(DocumentSnapshot doc) {
@@ -23,6 +27,10 @@ class UserFlow {
       flow: data['flow'] ?? 0,
       earnedFromDays: List<int>.from(data['earnedFromDays'] ?? []),
       flowAchievements: data['flowAchievements'] ?? {},
+      lastMeditationDate: data['lastMeditationDate'] != null 
+          ? (data['lastMeditationDate'] as Timestamp).toDate() 
+          : null,
+      totalFlowLost: data['totalFlowLost'] ?? 0,
     );
   }
   
@@ -33,6 +41,10 @@ class UserFlow {
       'flow': flow,
       'earnedFromDays': earnedFromDays,
       'flowAchievements': flowAchievements,
+      'lastMeditationDate': lastMeditationDate != null 
+          ? Timestamp.fromDate(lastMeditationDate!) 
+          : null,
+      'totalFlowLost': totalFlowLost,
     };
   }
   
@@ -42,6 +54,8 @@ class UserFlow {
     int? flow,
     List<int>? earnedFromDays,
     Map<String, dynamic>? flowAchievements,
+    DateTime? lastMeditationDate,
+    int? totalFlowLost,
   }) {
     return UserFlow(
       userId: userId ?? this.userId,
@@ -49,6 +63,8 @@ class UserFlow {
       flow: flow ?? this.flow,
       earnedFromDays: earnedFromDays ?? this.earnedFromDays,
       flowAchievements: flowAchievements ?? this.flowAchievements,
+      lastMeditationDate: lastMeditationDate ?? this.lastMeditationDate,
+      totalFlowLost: totalFlowLost ?? this.totalFlowLost,
     );
   }
   
@@ -63,6 +79,18 @@ class UserFlow {
     return copyWith(
       flow: flow + 1,
       earnedFromDays: updatedEarnedFromDays,
+      lastMeditationDate: DateTime.now(),
+    );
+  }
+  
+  UserFlow reduceFlow() {
+    // Don't reduce if flow is already 0
+    if (flow <= 0) return this;
+    
+    // Reduce flow by 1 and increment totalFlowLost
+    return copyWith(
+      flow: flow - 1,
+      totalFlowLost: totalFlowLost + 1,
     );
   }
 } 

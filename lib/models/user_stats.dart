@@ -8,6 +8,7 @@ class UserStats {
   final int sessionsCompleted;
   final Map<String, dynamic> lastSessionData;
   final Timestamp lastUpdated;
+  final int totalFlowLost;
   
   UserStats({
     required this.userId,
@@ -17,6 +18,7 @@ class UserStats {
     this.sessionsCompleted = 0,
     this.lastSessionData = const {},
     required this.lastUpdated,
+    this.totalFlowLost = 0,
   });
   
   factory UserStats.fromFirestore(DocumentSnapshot doc) {
@@ -29,6 +31,7 @@ class UserStats {
       sessionsCompleted: data['sessionsCompleted'] ?? 0,
       lastSessionData: Map<String, dynamic>.from(data['lastSessionData'] ?? {}),
       lastUpdated: data['lastUpdated'] ?? Timestamp.now(),
+      totalFlowLost: data['totalFlowLost'] ?? 0,
     );
   }
   
@@ -41,6 +44,7 @@ class UserStats {
       'sessionsCompleted': sessionsCompleted,
       'lastSessionData': lastSessionData,
       'lastUpdated': lastUpdated,
+      'totalFlowLost': totalFlowLost,
     };
   }
   
@@ -52,6 +56,7 @@ class UserStats {
     int? sessionsCompleted,
     Map<String, dynamic>? lastSessionData,
     Timestamp? lastUpdated,
+    int? totalFlowLost,
   }) {
     return UserStats(
       userId: userId ?? this.userId,
@@ -61,6 +66,7 @@ class UserStats {
       sessionsCompleted: sessionsCompleted ?? this.sessionsCompleted,
       lastSessionData: lastSessionData ?? this.lastSessionData,
       lastUpdated: lastUpdated ?? this.lastUpdated,
+      totalFlowLost: totalFlowLost ?? this.totalFlowLost,
     );
   }
   

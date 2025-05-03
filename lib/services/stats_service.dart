@@ -141,6 +141,55 @@ class StatsService {
     }
   }
   
+  // Update total flow lost count
+  Future<bool> updateTotalFlowLost(int totalFlowLost) async {
+    if (_userId == null) return false;
+    
+    try {
+      // Update total flow lost
+      await _statsCollection.doc(_userId).set({
+        'userId': _userId,
+        'totalFlowLost': totalFlowLost,
+        'lastUpdated': Timestamp.now(),
+      }, SetOptions(merge: true));
+      
+      return true;
+    } catch (e) {
+      print('Error updating total flow lost: $e');
+      return false;
+    }
+  }
+  
+  // Sync current streak with flow value
+  Future<bool> syncCurrentStreakWithFlow(int flowValue) async {
+    if (_userId == null) return false;
+    
+    try {
+      print('Syncing current streak with flow value: $flowValue');
+      
+      // Get current stats to preserve other values
+      final userStats = await getUserStats();
+      if (userStats == null) {
+        print('No user stats found to sync with flow');
+        return false;
+      }
+      
+      // Update with new flow value as current streak
+      await _statsCollection.doc(_userId).set({
+        'userId': _userId,
+        'currentStreak': flowValue,
+        // Keep longest streak unchanged
+        'lastUpdated': Timestamp.now(),
+      }, SetOptions(merge: true));
+      
+      print('Streak successfully synced with flow value');
+      return true;
+    } catch (e) {
+      print('Error syncing current streak with flow: $e');
+      return false;
+    }
+  }
+  
   // Reset user statistics
   Future<bool> resetUserStats() async {
     if (_userId == null) return false;
