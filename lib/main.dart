@@ -18,6 +18,7 @@ import 'package:axora/screens/admin_user_management_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:axora/services/meditation_service.dart';
 import 'package:axora/services/notification_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

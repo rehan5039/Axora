@@ -8,6 +8,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:axora/services/stats_service.dart';
+import 'package:axora/screens/flow_intro_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class MeditationDayScreen extends StatefulWidget {
   final MeditationContent content;
@@ -575,11 +577,49 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
     );
   }
   
-  // Add new method to show the Great Job Today! dialog
   void _showGreatJobDialog() {
     print('Showing Great Job dialog for day ${widget.content.day}');
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     final isDarkMode = themeProvider.isDarkMode;
+    
+    // Check if this is Day 1 completion - show Flow Intro instead
+    if (widget.content.day == 1) {
+      print('Day 1 completed - showing Flow Intro screen');
+      
+      // Make sure we don't show multiple dialogs
+      if (ModalRoute.of(context)?.isCurrent != true) {
+        print('Not showing Flow Intro - route is not current');
+        return;
+      }
+      
+      // Show Flow Intro screen immediately after Great Job dialog
+      Future.delayed(Duration(milliseconds: 500), () {
+        if (mounted) {
+          Navigator.of(context).push(
+            PageRouteBuilder(
+              pageBuilder: (context, animation, secondaryAnimation) => FlowIntroScreen(),
+              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                const begin = Offset(0.0, 1.0);
+                const end = Offset.zero;
+                const curve = Curves.easeOutQuint;
+                var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+                var offsetAnimation = animation.drive(tween);
+                return SlideTransition(position: offsetAnimation, child: child);
+              },
+            ),
+          ).then((_) {
+            // After intro is closed, mark flow intro as shown
+            _markFlowIntroAsShown();
+            
+            // Return to journey screen
+            if (mounted) {
+              Navigator.of(context).pop();
+            }
+          });
+          return;
+        }
+      });
+    }
     
     // Prevent showing multiple dialogs
     if (ModalRoute.of(context)?.isCurrent != true) {
@@ -718,6 +758,17 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
         Navigator.of(context).pop();
       }
     });
+  }
+
+  // Helper method to mark that we've shown the Flow intro
+  Future<void> _markFlowIntroAsShown() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('shown_flow_intro', true);
+      print('Flow intro marked as shown');
+    } catch (e) {
+      print('Error marking flow intro as shown: $e');
+    }
   }
 
   @override
