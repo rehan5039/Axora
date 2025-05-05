@@ -545,12 +545,8 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
     if (isIncrementingDay && content.day > 1) {
       final canCompleteToday = await _meditationService.canCompleteNewDayToday();
       if (!canCompleteToday) {
-        // Show message that they can only complete one new day per calendar day
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => _buildCompletionDialog(),
-        );
+        // Show Great Job Today dialog instead of Congratulations dialog
+        _showGreatJobDialog();
         return;
       }
     }
@@ -570,6 +566,137 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
     if (result == true) {
       _loadData();
     }
+  }
+
+  // Add Great Job Dialog method to meditation_journey_screen.dart
+  void _showGreatJobDialog() {
+    print('Showing Great Job dialog');
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    final isDarkMode = themeProvider.isDarkMode;
+    
+    // Show a dialog that won't auto-dismiss
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Prevent dismiss by tapping outside
+      builder: (context) {
+        return WillPopScope(
+          // Prevent dialog from being dismissed with back button
+          onWillPop: () async => false,
+          child: TweenAnimationBuilder(
+            // Add attention-grabbing animation
+            duration: Duration(milliseconds: 500),
+            tween: Tween<double>(begin: 0.8, end: 1.0),
+            builder: (context, double value, child) {
+              return Transform.scale(
+                scale: value,
+                child: child,
+              );
+            },
+            child: Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20.0),
+              ),
+              elevation: 10,
+              backgroundColor: isDarkMode ? Color(0xFF2D2D3A) : Colors.white,
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                width: MediaQuery.of(context).size.width * 0.9,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Add an attention-grabbing celebration icon at the top
+                    TweenAnimationBuilder(
+                      duration: Duration(milliseconds: 800),
+                      tween: Tween<double>(begin: 0.5, end: 1.0),
+                      builder: (context, double value, child) {
+                        return Transform.scale(
+                          scale: value,
+                          child: child,
+                        );
+                      },
+                      child: Icon(
+                        Icons.celebration,
+                        size: 60,
+                        color: Colors.amber,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Great Job Today!',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: isDarkMode ? Colors.white : Colors.black87,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'You\'ve completed today\'s meditation journey.',
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: isDarkMode ? Colors.white70 : Colors.black87,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Take this time to reflect and recharge.',
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: isDarkMode ? Colors.white70 : Colors.black87,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Come back tomorrow for your next step.',
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: isDarkMode ? Colors.white70 : Colors.black87,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 25),
+                    // Animate the button to draw attention
+                    TweenAnimationBuilder(
+                      duration: Duration(milliseconds: 1000),
+                      tween: ColorTween(
+                        begin: Colors.grey,
+                        end: isDarkMode ? Colors.deepPurple : Colors.blue,
+                      ),
+                      builder: (context, Color? color, child) {
+                        return ElevatedButton(
+                          onPressed: () {
+                            Navigator.of(context).pop();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: color,
+                            padding: EdgeInsets.symmetric(horizontal: 40, vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                          ),
+                          child: Text(
+                            'OK',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -1239,155 +1366,6 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
             ),
         ],
       ),
-    );
-  }
-
-  Widget _buildCompletionDialog([bool flowAwarded = true]) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
-    final isDarkMode = themeProvider.isDarkMode;
-    
-    return AlertDialog(
-      backgroundColor: Theme.of(context).brightness == Brightness.dark 
-          ? Colors.grey[850] 
-          : Colors.white,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(
-          color: Colors.blue,
-          width: 2,
-        ),
-      ),
-      title: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Image.asset(
-            'assets/images/flow_icon.png',
-            width: 24,
-            height: 24,
-            color: Colors.blue,
-          ),
-          SizedBox(width: 10),
-          Text('Congratulations!'),
-        ],
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              Image.asset(
-                'assets/images/flow_icon.png',
-                width: 84,
-                height: 84,
-                color: Colors.blue,
-              ),
-              Positioned(
-                right: 0,
-                bottom: 0,
-                child: Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: Colors.green,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: Theme.of(context).brightness == Brightness.dark 
-                          ? Colors.grey[850]! 
-                          : Colors.white,
-                      width: 2,
-                    ),
-                  ),
-                  child: Icon(
-                    Icons.check,
-                    color: Colors.white,
-                    size: 20,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'You\'ve completed today\'s meditation!',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
-            ),
-          ),
-          const SizedBox(height: 12),
-          if (flowAwarded)
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.blue.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.blue),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Image.asset(
-                    'assets/images/flow_icon.png',
-                    width: 24,
-                    height: 24,
-                    color: Colors.blue,
-                  ),
-                  SizedBox(width: 8),
-                  Text(
-                    'New Flow Awarded!',
-                    style: TextStyle(
-                      color: Colors.blue[800],
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            )
-          else
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.grey.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.info_outline, color: Colors.grey[700]),
-                  SizedBox(width: 8),
-                  Text(
-                    'Day marked as completed',
-                    style: TextStyle(
-                      color: Colors.grey[700],
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
-      actions: [
-        Center(
-          child: ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-              ),
-              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            ),
-            child: Text('Continue'),
-          ),
-        ),
-      ],
     );
   }
 } 

@@ -1,5 +1,8 @@
 {
   "projects": {
-    "default": "axora-5039"
-  }
+    "default": "axora-5039",
+    "production": "axora-5039"
+  },
+  "targets": {},
+  "etags": {}
 }
