@@ -19,9 +19,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:axora/services/meditation_service.dart';
 import 'package:axora/services/notification_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  // Preserve splash screen until initialization is complete
+  WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
   
   try {
     // Initialize Firebase
@@ -49,6 +52,9 @@ void main() async {
     debugPrint('Error initializing Firebase: $e');
     // Continue with app initialization even if Firebase initialization fails
   }
+  
+  // Remove splash screen once initialization is done
+  FlutterNativeSplash.remove();
   
   runApp(
     MultiProvider(

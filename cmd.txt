@@ -1,0 +1,23 @@
+flutter build web
+
+git add .
+git commit -m "Updated something"
+git push
+
+firebase deploy
+
+flutter clean
+
+flutter pub get
+
+flutter pub run flutter_native_splash:create
+
+flutter build apk --release
+
+flutter pub run flutter_launcher_icons
+
+flutter pub run flutter_native_splash:create
+
+flutter run
+
+flutter run -d chrome
