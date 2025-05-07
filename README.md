@@ -9,10 +9,6 @@ Axora is a modern Flutter application that showcases user authentication, cloud 
 - **Authentication System**
   - Email/Password Login and Registration
   - Google Sign-In Integration
-<<<<<<< HEAD
-  - Anonymous Authentication
-=======
->>>>>>> 988141788467a00c91cc7fa17a622e2c3a1a2f3a
   - Password Reset Functionality
   - Persistent User Sessions
 
@@ -112,11 +108,7 @@ The application uses several Firebase services:
 1. **Firebase Authentication**
    - Email/Password Authentication
    - Google Sign-In Provider
-<<<<<<< HEAD
-   - Anonymous Authentication
-=======
->>>>>>> 988141788467a00c91cc7fa17a622e2c3a1a2f3a
-
+     
 2. **Cloud Firestore**
    - User data storage
    - Settings persistence
@@ -252,8 +244,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ---
 
-<<<<<<< HEAD
-=======
-
->>>>>>> 988141788467a00c91cc7fa17a622e2c3a1a2f3a
 © 2025 Axora Application. All rights reserved..
