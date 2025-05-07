@@ -12,6 +12,8 @@ import 'package:axora/models/user_progress.dart';
 import 'package:axora/providers/notification_provider.dart';
 import 'package:axora/services/stats_service.dart';
 import 'package:axora/models/user_stats.dart';
+import 'package:axora/screens/about_axora_screen.dart';
+import 'package:axora/screens/help_support_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -975,12 +977,26 @@ class _ProfileTabState extends State<ProfileTab> {
             _ProfileMenuItem(
               icon: Icons.help_outline,
               title: 'Help & Support',
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const HelpSupportScreen(),
+                  ),
+                );
+              },
             ),
             _ProfileMenuItem(
               icon: Icons.info_outline,
               title: 'About Axora',
-              onTap: () {},
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AboutAxoraScreen(),
+                  ),
+                );
+              },
             ),
             if (user != null)
               _ProfileMenuItem(
