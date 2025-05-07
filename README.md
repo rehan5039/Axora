@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="assets/images/logo.png" alt="Axora Logo" width="180"/>
+  <img src="assets/images/logo.png" alt="Axora Logo" width="200"/>
 </p>
 
-<h1 align="center">✨ AXORA ✨</h1>
+<h1 align="center">✨ AxorA ✨</h1>
 <h3 align="center">Your Personal Meditation & Wellness Companion</h3>
 
 <p align="center">
