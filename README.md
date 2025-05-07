@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/rehan5039/Axora/main/assets/images/logo.png" alt="Axora Logo" width="180"/>
+  <img src="assets/images/logo.png" alt="Axora Logo" width="180"/>
 </p>
 
 <h1 align="center">✨ AXORA ✨</h1>
