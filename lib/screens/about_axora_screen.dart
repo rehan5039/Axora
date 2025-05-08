@@ -26,14 +26,7 @@ class AboutAxoraScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16.0),
         children: [
-          Center(
-            child: Image.asset(
-              'assets/images/logo.png',
-              height: 120,
-              width: 120,
-            ),
-          ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
           Center(
             child: Text(
               'Axora',

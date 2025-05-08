@@ -4,8 +4,6 @@ git add .
 git commit -m "Updated something"
 git push
 
-git pull --rebase origin main
-
 
 firebase deploy
 

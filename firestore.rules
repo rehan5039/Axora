@@ -125,5 +125,48 @@ service cloud.firestore {
       // Allow admins to delete stats
       allow delete: if request.auth != null && isAdmin();
     }
+    
+    // Support requests collection for user support
+    match /support_requests/{requestId} {
+      // Allow users to read their own support requests
+      allow read: if request.auth != null && (
+        resource.data.userId == request.auth.uid || isAdmin()
+      );
+      
+      // Allow authenticated users to create support requests
+      allow create: if request.auth != null && (
+        request.resource.data.userId == request.auth.uid
+      );
+      
+      // Only admins can update support request status
+      allow update: if request.auth != null && isAdmin();
+      
+      // Only admins can delete support requests
+      allow delete: if request.auth != null && isAdmin();
+    }
+    
+    // Community chat collection for public discussion
+    match /community_chat/{messageId} {
+      // Anyone who is authenticated can read messages
+      allow read: if request.auth != null;
+      
+      // Users can create their own messages
+      allow create: if request.auth != null && (
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.userName is string &&
+        request.resource.data.message is string && 
+        request.resource.data.message.size() <= 1000
+      );
+      
+      // Only message owners or admins can update messages
+      allow update: if request.auth != null && (
+        request.auth.uid == resource.data.userId || isAdmin()
+      );
+      
+      // Only message owners or admins can delete messages
+      allow delete: if request.auth != null && (
+        request.auth.uid == resource.data.userId || isAdmin()
+      );
+    }
   }
 } 

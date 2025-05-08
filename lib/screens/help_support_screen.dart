@@ -3,6 +3,8 @@ import 'package:axora/providers/theme_provider.dart';
 import 'package:axora/theme/app_colors.dart';
 import 'package:provider/provider.dart';
 import 'about_axora_screen.dart';
+import 'contact_support_screen.dart';
+import 'community_support_screen.dart';
 
 class HelpSupportScreen extends StatelessWidget {
   const HelpSupportScreen({Key? key}) : super(key: key);
@@ -30,7 +32,25 @@ class HelpSupportScreen extends StatelessWidget {
             title: 'Contact Support',
             subtitle: 'Get help with your account or app issues',
             onTap: () {
-              // Handle contact support action
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ContactSupportScreen(),
+                ),
+              );
+            },
+          ),
+          _SupportMenuItem(
+            icon: Icons.forum_outlined,
+            title: 'Community Support',
+            subtitle: 'Chat with other users and get help from the community',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const CommunitySupportScreen(),
+                ),
+              );
             },
           ),
           _SupportMenuItem(

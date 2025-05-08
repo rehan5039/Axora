@@ -15,6 +15,8 @@ import 'package:axora/screens/meditation_journey_screen.dart';
 import 'package:axora/screens/admin_meditation_screen.dart';
 import 'package:axora/screens/admin_dashboard_screen.dart';
 import 'package:axora/screens/admin_user_management_screen.dart';
+import 'package:axora/screens/contact_support_screen.dart';
+import 'package:axora/screens/community_support_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:axora/services/meditation_service.dart';
 import 'package:axora/services/notification_service.dart';
@@ -196,6 +198,8 @@ class _MyAppState extends State<MyApp> {
         '/admin-meditation': (context) => const AdminMeditationScreen(),
         '/admin-dashboard': (context) => const AdminDashboardScreen(),
         '/admin-user-management': (context) => const AdminUserManagementScreen(),
+        '/contact-support': (context) => const ContactSupportScreen(),
+        '/community-support': (context) => const CommunitySupportScreen(),
       },
     );
   }
