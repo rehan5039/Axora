@@ -11,7 +11,7 @@ class RealtimeDatabaseService {
   RealtimeDatabaseService() : _database = FirebaseDatabase.instance {
     try {
       // Set the database URL explicitly based on your Firebase project
-      _database.databaseURL = 'https://axora-5039-default-rtdb.firebaseio.com';
+      _database.databaseURL = 'https://axora-we-default-rtdb.firebaseio.com';
     } catch (e) {
       print('Error configuring Realtime Database URL: $e');
     }

@@ -444,7 +444,7 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
       // Create basic audio content
       final audio = AudioContent(
         title: 'Breath Awareness Meditation',
-        url: 'https://firebasestorage.googleapis.com/v0/b/axora-5039.appspot.com/o/meditation_audios%2Fday1.mp3?alt=media',
+        url: 'https://firebasestorage.googleapis.com/v0/b/axora-we.appspot.com/o/meditation_audios%2Fday1.mp3?alt=media',
         durationInSeconds: 300, // 5 minutes
       );
       

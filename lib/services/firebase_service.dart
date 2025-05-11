@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 class FirebaseService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn(
-    clientId: kIsWeb ? '906770746320-aoh8gg8krlj3el1smo6rtmrcss76uvu7.apps.googleusercontent.com' : null,
+    clientId: kIsWeb ? '269197339207-7g97lsrgqv15ub6vo87p7q2csb268cv1.apps.googleusercontent.com' : null,
   );
 
   // Get current user

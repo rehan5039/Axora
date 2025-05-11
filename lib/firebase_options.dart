@@ -47,29 +47,32 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyDV7cc_fRJ_Nw46STdCtyyHxgJq3Ohlopk',
-    appId: '1:906770746320:web:95ab2ddbd057c5bf4bc7d5',
-    messagingSenderId: '906770746320',
-    projectId: 'axora-5039',
-    authDomain: 'axora-5039.firebaseapp.com',
-    storageBucket: 'axora-5039.firebasestorage.app',
-    measurementId: 'G-SLRQ60QJT5',
+    apiKey: 'AIzaSyCR-6KdD4WKMN80pbAWpELHVvsZKeRjToo',
+    appId: '1:269197339207:web:d1240005de3e32d099df62',
+    messagingSenderId: '269197339207',
+    projectId: 'axora-we',
+    authDomain: 'axora-we.firebaseapp.com',
+    storageBucket: 'axora-we.firebasestorage.app',
+    measurementId: 'G-MW96WHJR17',
+    databaseURL: 'https://axora-we-default-rtdb.firebaseio.com',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyC4MkkNGH40eAzjOxuekspbIpN_FQhQXv0',
-    appId: '1:906770746320:android:8aede31e4dc475a84bc7d5',
-    messagingSenderId: '906770746320',
-    projectId: 'axora-5039',
-    storageBucket: 'axora-5039.firebasestorage.app',
+    apiKey: 'AIzaSyApJu5ns2-0F2GL5gWBZaVxuhJ65Bcu1qI',
+    appId: '1:269197339207:android:d7f0bf5d498e041f99df62',
+    messagingSenderId: '269197339207',
+    projectId: 'axora-we',
+    storageBucket: 'axora-we.firebasestorage.app',
+    databaseURL: 'https://axora-we-default-rtdb.firebaseio.com',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyCyg_XpQ2hVAFpaj30HnRVfw-Ig7OjGc2A',
-    appId: '1:906770746320:ios:11f83c221f8d392c4bc7d5',
-    messagingSenderId: '906770746320',
-    projectId: 'axora-5039',
-    storageBucket: 'axora-5039.firebasestorage.app',
+    apiKey: 'AIzaSyApJu5ns2-0F2GL5gWBZaVxuhJ65Bcu1qI',
+    appId: '1:269197339207:ios:d783532d9cb8a0f099df62',
+    messagingSenderId: '269197339207',
+    projectId: 'axora-we',
+    storageBucket: 'axora-we.firebasestorage.app',
     iosBundleId: 'com.rr.axora.axora',
+    databaseURL: 'https://axora-we-default-rtdb.firebaseio.com',
   );
 }

@@ -43,3 +43,26 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Keystore files
+*.jks
+*.keystore
+*.p12
+*.key
+*.pepk
+
+# Sensitive files
+key.properties
+upload-keystore.jks
+axora.jks
+
+# Google Services (e.g. APIs or Firebase)
+google-services.json
+GoogleService-Info.plist
+
+# Don't check in sensitive credentials
+android/key.properties
+android/app/key.properties
+android/app/*.jks
+**/android/app/google-services.json
+**/ios/Runner/GoogleService-Info.plist

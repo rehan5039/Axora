@@ -11,8 +11,9 @@ class UserDatabaseService {
       FirebaseFirestore.instance.collection('user_profiles');
   
   // Get a user by ID
-  Future<DocumentSnapshot> getUserById(String userId) {
-    return _usersCollection.doc(userId).get();
+  Future<Map<String, dynamic>?> getUserById(String userId) async {
+    final docSnapshot = await _usersCollection.doc(userId).get();
+    return docSnapshot.exists ? docSnapshot.data() as Map<String, dynamic>? : null;
   }
   
   // Save user data to Firestore

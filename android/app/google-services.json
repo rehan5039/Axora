@@ -1,46 +1,46 @@
 {
   "project_info": {
-    "project_number": "906770746320",
-    "firebase_url": "https://axora-5039-default-rtdb.firebaseio.com",
-    "project_id": "axora-5039",
-    "storage_bucket": "axora-5039.firebasestorage.app"
+    "project_number": "269197339207",
+    "firebase_url": "https://axora-we-default-rtdb.firebaseio.com",
+    "project_id": "axora-we",
+    "storage_bucket": "axora-we.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:906770746320:android:8aede31e4dc475a84bc7d5",
+        "mobilesdk_app_id": "1:269197339207:android:d7f0bf5d498e041f99df62",
         "android_client_info": {
           "package_name": "com.rr.axora.axora"
         }
       },
       "oauth_client": [
         {
-          "client_id": "906770746320-htao1d3js4aiked5l9p33bfp16mfab0g.apps.googleusercontent.com",
+          "client_id": "269197339207-j2ualbvom1rf3viobbn11kidpgrbr36r.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.rr.axora.axora",
-            "certificate_hash": "1b9d0a35384d244465b399a4f7644dd0065c8613"
+            "certificate_hash": "01de610a71cb6e2ee6aa3e58c1ed958498b826fd"
           }
         },
         {
-          "client_id": "906770746320-aoh8gg8krlj3el1smo6rtmrcss76uvu7.apps.googleusercontent.com",
+          "client_id": "269197339207-7g97lsrgqv15ub6vo87p7q2csb268cv1.apps.googleusercontent.com",
           "client_type": 3
         }
       ],
       "api_key": [
         {
-          "current_key": "AIzaSyC4MkkNGH40eAzjOxuekspbIpN_FQhQXv0"
+          "current_key": "AIzaSyApJu5ns2-0F2GL5gWBZaVxuhJ65Bcu1qI"
         }
       ],
       "services": {
         "appinvite_service": {
           "other_platform_oauth_client": [
             {
-              "client_id": "906770746320-aoh8gg8krlj3el1smo6rtmrcss76uvu7.apps.googleusercontent.com",
+              "client_id": "269197339207-7g97lsrgqv15ub6vo87p7q2csb268cv1.apps.googleusercontent.com",
               "client_type": 3
             },
             {
-              "client_id": "906770746320-kggok6ism39a5n22u2dgpk7cd4crh5mc.apps.googleusercontent.com",
+              "client_id": "269197339207-4mp99r5gnbpr0fjbmtimqo5tussrrlo6.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
                 "bundle_id": "com.rr.axora.axora"

@@ -4,6 +4,7 @@ import 'package:axora/theme/app_colors.dart';
 import 'package:provider/provider.dart';
 import 'privacy_policy_screen.dart';
 import 'terms_service_screen.dart';
+import 'author_information_screen.dart';
 
 class AboutAxoraScreen extends StatelessWidget {
   const AboutAxoraScreen({Key? key}) : super(key: key);
@@ -50,6 +51,18 @@ class AboutAxoraScreen extends StatelessWidget {
           const SizedBox(height: 32),
           const Divider(),
           _AboutMenuItem(
+            icon: Icons.person_outline,
+            title: 'Author Information',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AuthorInformationScreen(),
+                ),
+              );
+            },
+          ),
+          _AboutMenuItem(
             icon: Icons.description_outlined,
             title: 'Privacy Policy',
             onTap: () {
@@ -78,13 +91,6 @@ class AboutAxoraScreen extends StatelessWidget {
             title: 'App Information',
             onTap: () {
               // Navigate to App Information screen when implemented
-            },
-          ),
-          _AboutMenuItem(
-            icon: Icons.email_outlined,
-            title: 'Contact Us',
-            onTap: () {
-              // Navigate to Contact Us screen when implemented
             },
           ),
         ],

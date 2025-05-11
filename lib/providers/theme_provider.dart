@@ -28,17 +28,15 @@ class ThemeProvider extends ChangeNotifier {
       if (user != null) {
         // Try to load from Firestore first
         try {
-          final firestoreDoc = await _firestoreService.getUserById(user.uid);
-          if (firestoreDoc.exists) {
-            final data = firestoreDoc.data() as Map<String, dynamic>;
-            if (data.containsKey('userSettings') && 
-                data['userSettings'] is Map && 
-                data['userSettings'].containsKey('darkMode')) {
-              _isDarkMode = data['userSettings']['darkMode'] as bool;
-              _initialized = true;
-              notifyListeners();
-              return;
-            }
+          final userData = await _firestoreService.getUserById(user.uid);
+          if (userData != null && 
+              userData.containsKey('userSettings') && 
+              userData['userSettings'] is Map && 
+              userData['userSettings'].containsKey('darkMode')) {
+            _isDarkMode = userData['userSettings']['darkMode'] as bool;
+            _initialized = true;
+            notifyListeners();
+            return;
           }
         } catch (e) {
           debugPrint('Error loading theme from Firestore: $e');

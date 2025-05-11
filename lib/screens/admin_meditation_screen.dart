@@ -1132,7 +1132,7 @@ class _AdminMeditationScreenState extends State<AdminMeditationScreen> {
 
   Future<void> _updateDay1AudioUrl() async {
     final meditationService = MeditationService();
-    final newAudioUrl = 'https://firebasestorage.googleapis.com/v0/b/axora-5039.appspot.com/o/meditation_audios%2Fday1.mp3?alt=media';
+    final newAudioUrl = 'https://firebasestorage.googleapis.com/v0/b/axora-we.appspot.com/o/meditation_audios%2Fday1.mp3?alt=media';
     
     final success = await meditationService.updateMeditationAudioUrl(
       documentId: 'Day-1',

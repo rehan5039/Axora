@@ -17,6 +17,8 @@ import 'package:axora/screens/admin_dashboard_screen.dart';
 import 'package:axora/screens/admin_user_management_screen.dart';
 import 'package:axora/screens/contact_support_screen.dart';
 import 'package:axora/screens/community_support_screen.dart';
+import 'package:axora/screens/meditation_reminder_screen.dart';
+import 'package:axora/screens/settings_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:axora/services/meditation_service.dart';
 import 'package:axora/services/notification_service.dart';
@@ -24,9 +26,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 
 void main() async {
-  // Preserve splash screen until initialization is complete
+  // Ensure proper widget initialization
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
+  
+  // Ensure the binding is properly attached
+  if (!widgetsBinding.debugDidSendFirstFrameEvent) {
+    widgetsBinding.addPostFrameCallback((_) {
+      debugPrint('First frame rendered');
+    });
+  }
   
   try {
     // Initialize Firebase
@@ -39,11 +48,10 @@ void main() async {
     
     // Configure Firebase Realtime Database URL explicitly
     try {
-      FirebaseDatabase.instance.databaseURL = 'https://axora-5039-default-rtdb.firebaseio.com';
+      FirebaseDatabase.instance.databaseURL = 'https://axora-we-default-rtdb.firebaseio.com';
       debugPrint('Firebase Realtime Database URL configured successfully');
     } catch (e) {
       debugPrint('Failed to configure Firebase Realtime Database URL: $e');
-      // Continue app initialization even if this fails
     }
     
     // Initialize notification service
@@ -52,7 +60,6 @@ void main() async {
     
   } catch (e) {
     debugPrint('Error initializing Firebase: $e');
-    // Continue with app initialization even if Firebase initialization fails
   }
   
   // Remove splash screen once initialization is done
@@ -200,6 +207,8 @@ class _MyAppState extends State<MyApp> {
         '/admin-user-management': (context) => const AdminUserManagementScreen(),
         '/contact-support': (context) => const ContactSupportScreen(),
         '/community-support': (context) => const CommunitySupportScreen(),
+        '/meditation-reminder': (context) => const MeditationReminderScreen(),
+        '/settings': (context) => const SettingsScreen(),
       },
     );
   }

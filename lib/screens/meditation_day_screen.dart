@@ -906,7 +906,7 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
             child: ClipRRect(
               borderRadius: BorderRadius.circular(100),
               child: CachedNetworkImage(
-                imageUrl: 'https://firebasestorage.googleapis.com/v0/b/axora-5039.appspot.com/o/meditation_images%2Fday${widget.content.day}.jpg?alt=media',
+                imageUrl: 'https://firebasestorage.googleapis.com/v0/b/axora-we.appspot.com/o/meditation_images%2Fday${widget.content.day}.jpg?alt=media',
                 placeholder: (context, url) => const Center(child: CircularProgressIndicator()),
                 errorWidget: (context, url, error) => const Icon(Icons.self_improvement, size: 80),
                 fit: BoxFit.cover,

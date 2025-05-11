@@ -4,6 +4,7 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -41,6 +42,21 @@ class NotificationService {
       initSettings,
     );
     
+    // Create notification channel for Android
+    const AndroidNotificationChannel channel = AndroidNotificationChannel(
+      'meditation_journey_channel',
+      'Meditation Journey Notifications',
+      description: 'Notifications for Meditation Journey app',
+      importance: Importance.high,
+    );
+    
+    await _flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(channel);
+    
+    // Request notification permissions
+    await requestPermissions();
+    
     _isInitialized = true;
     debugPrint('Notification service initialized successfully');
   }
@@ -69,6 +85,13 @@ class NotificationService {
   }
   
   Future<void> requestPermissions() async {
+    if (kIsWeb) {
+      // For web, we need to handle permissions differently
+      debugPrint('Running on web, notification permissions handled differently');
+      return;
+    }
+    
+    // For Android/iOS
     await _flutterLocalNotificationsPlugin
         .resolvePlatformSpecificImplementation<
             IOSFlutterLocalNotificationsPlugin>()
@@ -77,6 +100,15 @@ class NotificationService {
           badge: true,
           sound: true,
         );
+        
+    // For Android 13 and above
+    final androidPlugin = _flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+            
+    if (androidPlugin != null) {
+      await androidPlugin.requestNotificationsPermission();
+    }
   }
   
   Future<void> showNotification({
@@ -96,6 +128,7 @@ class NotificationService {
       channelDescription: 'Notifications for Meditation Journey app',
       importance: Importance.high,
       priority: Priority.high,
+      icon: 'ic_notification',
     );
     
     const DarwinNotificationDetails iosDetails = 
@@ -134,6 +167,7 @@ class NotificationService {
       channelDescription: 'Notifications for Meditation Journey app',
       importance: Importance.high,
       priority: Priority.high,
+      icon: 'ic_notification',
     );
     
     const DarwinNotificationDetails iosDetails = 
@@ -153,8 +187,6 @@ class NotificationService {
       tz.TZDateTime.from(scheduledDate, tz.local),
       notificationDetails,
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
     );
   }
   
@@ -185,5 +217,81 @@ class NotificationService {
       body: 'Day $dayNumber of your meditation journey is now available.',
       scheduledDate: scheduledDate,
     );
+  }
+  
+  /// Schedules a daily recurring meditation reminder with user's custom message
+  Future<void> scheduleDailyMeditationReminder({
+    required int hour,
+    required int minute,
+    required String userName,
+    String customMessage = '',
+  }) async {
+    try {
+      // Cancel any existing reminder first
+      await cancelNotification(9000);
+      
+      // Calculate when to schedule notification
+      final now = DateTime.now();
+      final scheduledTime = DateTime(
+        now.year,
+        now.month,
+        now.day,
+        hour,
+        minute,
+      );
+      
+      // If the time for today has already passed, schedule for tomorrow
+      final scheduleDateTime = scheduledTime.isBefore(now)
+          ? scheduledTime.add(Duration(days: 1))
+          : scheduledTime;
+      
+      // Create notification body with custom message if provided
+      String body = 'Hi $userName, Tumhara meditation session ready hai.';
+      if (customMessage.isNotEmpty) {
+        body += '\n$customMessage';
+      }
+      
+      // For web platform, we'll just log the notification instead of scheduling
+      if (kIsWeb) {
+        debugPrint('Web platform: Would schedule notification at $scheduleDateTime with message: $body');
+        return;
+      }
+      
+      // Schedule the notification for mobile platforms
+      const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+        'meditation_journey_channel',
+        'Meditation Journey Notifications',
+        channelDescription: 'Notifications for Meditation Journey app',
+        importance: Importance.high,
+        priority: Priority.high,
+        icon: 'ic_notification',
+      );
+      
+      const DarwinNotificationDetails iosDetails = DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      );
+      
+      const NotificationDetails notificationDetails = NotificationDetails(
+        android: androidDetails, 
+        iOS: iosDetails
+      );
+      
+      await _flutterLocalNotificationsPlugin.zonedSchedule(
+        9000,
+        'Meditation Reminder',
+        body,
+        tz.TZDateTime.from(scheduleDateTime, tz.local),
+        notificationDetails,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      );
+      
+      debugPrint('Daily meditation reminder scheduled for: $scheduleDateTime');
+      return;
+    } catch (e) {
+      debugPrint('Error scheduling daily meditation reminder: $e');
+      // Don't rethrow to prevent app crashes
+    }
   }
 } 

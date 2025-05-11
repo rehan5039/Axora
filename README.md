@@ -1,9 +1,5 @@
 <p align="center">
-<<<<<<< HEAD
   <img src="assets/images/logo.png" alt="Axora Logo" width="200"/>
-=======
-  <img src="assets/images/logo.png" alt="Axora Logo" width="150" style="max-width: 80%;"/>
->>>>>>> 9a1293f (privacy)
 </p>
 
 <h1 align="center">✨ AxorA ✨</h1>
@@ -225,3 +221,44 @@ dependencies:
   <sub>© 2025 Axora Application. All rights reserved.</sub><br>
   <sub>Made with ❤️ for a calmer world</sub>
 </p>
+
+# Axora App
+
+## Important Security Notes
+
+### Sensitive Files
+The following files contain sensitive information and are NOT included in the repository:
+
+1. `android/app/axora.jks` - Release keystore file
+2. `android/key.properties` - Keystore credentials
+3. `android/app/google-services.json` - Firebase configuration
+4. `ios/Runner/GoogleService-Info.plist` - iOS Firebase configuration
+
+### Setting Up Development Environment
+
+To set up your development environment, you need to:
+
+1. Obtain the release keystore file (`axora.jks`) from the project administrator
+2. Place `axora.jks` in `android/app/` directory
+3. Create `android/key.properties` with the following content:
+   ```properties
+   storePassword=<ask_team_lead_for_password>
+   keyPassword=<ask_team_lead_for_password>
+   keyAlias=axora
+   storeFile=axora.jks
+   ```
+4. Obtain `google-services.json` from Firebase Console and place it in `android/app/`
+
+### Security Best Practices
+- Never commit sensitive files to the repository
+- Keep the keystore file and its passwords secure
+- Store sensitive files in a secure location outside the project directory
+- Use environment variables for sensitive information in CI/CD pipelines
+
+### Release Signing
+The app is signed using a release keystore with the following details:
+- Keystore Location: `android/app/axora.jks`
+- Key Alias: `axora`
+- SHA-1: `01:DE:61:0A:71:CB:6E:2E:E6:AA:3E:58:C1:ED:95:84:98:B8:26:FD`
+
+Contact the project administrator for access to these files.

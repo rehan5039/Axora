@@ -14,6 +14,8 @@ import 'package:axora/services/stats_service.dart';
 import 'package:axora/models/user_stats.dart';
 import 'package:axora/screens/about_axora_screen.dart';
 import 'package:axora/screens/help_support_screen.dart';
+import 'package:axora/screens/meditation_reminder_screen.dart';
+import 'package:axora/screens/settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -953,7 +955,13 @@ class _ProfileTabState extends State<ProfileTab> {
             _ProfileMenuItem(
               icon: Icons.settings,
               title: 'Settings',
-              onTap: () {},
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const SettingsScreen(),
+                  ),
+                );
+              },
             ),
             _ProfileMenuItem(
               icon: Icons.color_lens,
