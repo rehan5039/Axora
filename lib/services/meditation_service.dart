@@ -172,6 +172,7 @@ class MeditationService {
     required ArticleContent article,
     required AudioContent audio,
     bool isActive = true,
+    List<Map<String, dynamic>> articlePages = const [],
   }) async {
     try {
       // Check if user is admin
@@ -196,6 +197,7 @@ class MeditationService {
         'createdAt': FieldValue.serverTimestamp(),
         'createdBy': _userEmail,
         'isActive': isActive,
+        'articlePages': articlePages,
       });
       
       print('Document added successfully with ID: $docId');
@@ -1438,6 +1440,175 @@ class MeditationService {
     } catch (e) {
       print('Error manually reducing flow: $e');
       print('Stack trace: ${StackTrace.current}');
+      return false;
+    }
+  }
+
+  // Add a new page to meditation content (admin only)
+  Future<bool> addArticlePage({
+    required String contentId,
+    required ArticleContent page,
+  }) async {
+    try {
+      // Check if user is admin
+      if (!await isAdmin()) {
+        print('User is not authorized to add article pages');
+        return false;
+      }
+
+      // Get the document reference
+      final docRef = _contentCollection.doc(contentId);
+      
+      // Get the current document
+      final docSnapshot = await docRef.get();
+      if (!docSnapshot.exists) {
+        print('Meditation content document not found: $contentId');
+        return false;
+      }
+      
+      // Update the document with the new page
+      await docRef.update({
+        'articlePages': FieldValue.arrayUnion([page.toMap()]),
+        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedBy': _userEmail,
+      });
+      
+      return true;
+    } catch (e) {
+      print('Error adding article page: $e');
+      return false;
+    }
+  }
+  
+  // Update an existing article page (admin only)
+  Future<bool> updateArticlePage({
+    required String contentId,
+    required int pageIndex,
+    required ArticleContent updatedPage,
+  }) async {
+    try {
+      // Check if user is admin
+      if (!await isAdmin()) {
+        print('User is not authorized to update article pages');
+        return false;
+      }
+      
+      // Get the document reference
+      final docRef = _contentCollection.doc(contentId);
+      
+      // Get the current document
+      final docSnapshot = await docRef.get();
+      if (!docSnapshot.exists) {
+        print('Meditation content document not found: $contentId');
+        return false;
+      }
+      
+      final data = docSnapshot.data() as Map<String, dynamic>;
+      
+      // If pageIndex is 0, we're updating the main article
+      if (pageIndex == 0) {
+        await docRef.update({
+          'article': updatedPage.toMap(),
+          'updatedAt': FieldValue.serverTimestamp(),
+          'updatedBy': _userEmail,
+        });
+        return true;
+      }
+      
+      // For other pages, we need to update the specific page in the array
+      if (!data.containsKey('articlePages') || 
+          data['articlePages'] is! List || 
+          (data['articlePages'] as List).length < pageIndex) {
+        print('Article page not found at index: $pageIndex');
+        return false;
+      }
+      
+      // Get current pages
+      List<dynamic> currentPages = data['articlePages'] as List;
+      
+      // Create a new list with the updated page
+      List<Map<String, dynamic>> updatedPages = [];
+      for (int i = 0; i < currentPages.length; i++) {
+        if (i == pageIndex - 1) {
+          updatedPages.add(updatedPage.toMap());
+        } else {
+          updatedPages.add(Map<String, dynamic>.from(currentPages[i] as Map));
+        }
+      }
+      
+      // Update the document
+      await docRef.update({
+        'articlePages': updatedPages,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedBy': _userEmail,
+      });
+      
+      return true;
+    } catch (e) {
+      print('Error updating article page: $e');
+      return false;
+    }
+  }
+  
+  // Remove an article page (admin only)
+  Future<bool> removeArticlePage({
+    required String contentId,
+    required int pageIndex,
+  }) async {
+    try {
+      // Check if user is admin
+      if (!await isAdmin()) {
+        print('User is not authorized to remove article pages');
+        return false;
+      }
+      
+      // Cannot remove the main article (pageIndex 0)
+      if (pageIndex == 0) {
+        print('Cannot remove the main article (pageIndex 0)');
+        return false;
+      }
+      
+      // Get the document reference
+      final docRef = _contentCollection.doc(contentId);
+      
+      // Get the current document
+      final docSnapshot = await docRef.get();
+      if (!docSnapshot.exists) {
+        print('Meditation content document not found: $contentId');
+        return false;
+      }
+      
+      final data = docSnapshot.data() as Map<String, dynamic>;
+      
+      // Check if the article pages exist
+      if (!data.containsKey('articlePages') || 
+          data['articlePages'] is! List || 
+          (data['articlePages'] as List).length < pageIndex) {
+        print('Article page not found at index: $pageIndex');
+        return false;
+      }
+      
+      // Get current pages
+      List<dynamic> currentPages = data['articlePages'] as List;
+      
+      // Create a new list without the removed page
+      List<Map<String, dynamic>> updatedPages = [];
+      for (int i = 0; i < currentPages.length; i++) {
+        if (i != pageIndex - 1) {
+          updatedPages.add(Map<String, dynamic>.from(currentPages[i] as Map));
+        }
+      }
+      
+      // Update the document
+      await docRef.update({
+        'articlePages': updatedPages,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedBy': _userEmail,
+      });
+      
+      return true;
+    } catch (e) {
+      print('Error removing article page: $e');
       return false;
     }
   }

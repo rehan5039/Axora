@@ -40,16 +40,22 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
   // Get current user ID
   String? get _userId => _auth.currentUser?.uid;
   
+  // Add variables to track current article page
+  int _currentArticlePage = 0;
+  late PageController _pageController;
+  
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _pageController = PageController();
     _checkCompletionStatus();
   }
   
   @override
   void dispose() {
     _tabController.dispose();
+    _pageController.dispose();
     super.dispose();
   }
   
@@ -582,189 +588,198 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     final isDarkMode = themeProvider.isDarkMode;
     
-    // Check if this is Day 1 completion - show Flow Intro instead
-    if (widget.content.day == 1) {
-      print('Day 1 completed - checking if Flow Intro already shown');
-      
-      // Make sure we don't show multiple dialogs
-      if (ModalRoute.of(context)?.isCurrent != true) {
-        print('Not showing Flow Intro - route is not current');
-        return;
-      }
-      
-      // Check if we've already shown the Flow intro before showing it again
-      _hasShownFlowIntro().then((alreadyShown) {
-        if (alreadyShown) {
-          print('Flow Intro already shown previously - skipping');
+    // Ensure that this is called when the widget is properly mounted
+    if (!mounted) {
+      print('Not showing Great Job dialog - widget not mounted');
+      return;
+    }
+    
+    // Add a small delay to ensure layout is complete before showing dialog
+    Future.delayed(Duration(milliseconds: 100), () {
+      // Check if this is Day 1 completion - show Flow Intro instead
+      if (widget.content.day == 1) {
+        print('Day 1 completed - showing Flow Intro');
+        
+        // Make sure we don't show multiple dialogs
+        if (ModalRoute.of(context)?.isCurrent != true) {
+          print('Not showing Flow Intro - route is not current');
           return;
         }
         
-        // Show Flow Intro screen immediately after Great Job dialog
-        Future.delayed(Duration(milliseconds: 500), () {
-          if (mounted) {
-            Navigator.of(context).push(
-              PageRouteBuilder(
-                pageBuilder: (context, animation, secondaryAnimation) => FlowIntroScreen(),
-                transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                  const begin = Offset(0.0, 1.0);
-                  const end = Offset.zero;
-                  const curve = Curves.easeOutQuint;
-                  var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-                  var offsetAnimation = animation.drive(tween);
-                  return SlideTransition(position: offsetAnimation, child: child);
-                },
-              ),
-            ).then((_) {
-              // After intro is closed, mark flow intro as shown
-              _markFlowIntroAsShown();
-              
-              // Return to journey screen
+        // Show Flow Intro screen with a slight delay to ensure rendering is complete
+        print('Displaying Flow Intro Screen');
+        Future.delayed(Duration(milliseconds: 150), () {
+          Navigator.of(context).push(
+            PageRouteBuilder(
+              pageBuilder: (context, animation, secondaryAnimation) => const FlowIntroScreen(),
+              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                const begin = Offset(0.0, 1.0);
+                const end = Offset.zero;
+                const curve = Curves.easeOutQuint;
+                var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+                var offsetAnimation = animation.drive(tween);
+                return SlideTransition(position: offsetAnimation, child: child);
+              },
+            ),
+          ).then((_) {
+            print('Flow Intro closed');
+            // After intro is closed, mark flow intro as shown
+            _markFlowIntroAsShown();
+            
+            // Return to journey screen after a brief delay
+            Future.delayed(Duration(milliseconds: 100), () {
               if (mounted) {
                 Navigator.of(context).pop();
               }
             });
-            return;
-          }
+          });
         });
-      });
-    }
-    
-    // Prevent showing multiple dialogs
-    if (ModalRoute.of(context)?.isCurrent != true) {
-      print('Not showing Great Job dialog - route is not current');
-      return;
-    }
-    
-    // Show a dialog that won't auto-dismiss
-    showDialog(
-      context: context,
-      barrierDismissible: false, // Prevent dismiss by tapping outside
-      builder: (context) {
-        return WillPopScope(
-          // Prevent dialog from being dismissed with back button
-          onWillPop: () async => false,
-          child: TweenAnimationBuilder(
-            // Add attention-grabbing animation
-            duration: Duration(milliseconds: 500),
-            tween: Tween<double>(begin: 0.8, end: 1.0),
-            builder: (context, double value, child) {
-              return Transform.scale(
-                scale: value,
-                child: child,
-              );
-            },
-            child: Dialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20.0),
-              ),
-              elevation: 10,
-              backgroundColor: isDarkMode ? Color(0xFF2D2D3A) : Colors.white,
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                width: MediaQuery.of(context).size.width * 0.9,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Add an attention-grabbing celebration icon at the top
-                    TweenAnimationBuilder(
-                      duration: Duration(milliseconds: 800),
-                      tween: Tween<double>(begin: 0.5, end: 1.0),
-                      builder: (context, double value, child) {
-                        return Transform.scale(
-                          scale: value,
-                          child: child,
-                        );
-                      },
-                      child: Icon(
-                        Icons.celebration,
-                        size: 60,
-                        color: Colors.amber,
+        
+        // Don't show the Great Job dialog for Day 1, just show the Flow Intro
+        return;
+      }
+      
+      // For other days, show the Great Job dialog
+      
+      // Prevent showing multiple dialogs
+      if (ModalRoute.of(context)?.isCurrent != true) {
+        print('Not showing Great Job dialog - route is not current');
+        return;
+      }
+      
+      // Show a dialog that won't auto-dismiss
+      showDialog(
+        context: context,
+        barrierDismissible: false, // Prevent dismiss by tapping outside
+        builder: (context) {
+          return WillPopScope(
+            // Prevent dialog from being dismissed with back button
+            onWillPop: () async => false,
+            child: TweenAnimationBuilder(
+              // Add attention-grabbing animation
+              duration: Duration(milliseconds: 500),
+              tween: Tween<double>(begin: 0.8, end: 1.0),
+              builder: (context, double value, child) {
+                return Transform.scale(
+                  scale: value,
+                  child: child,
+                );
+              },
+              child: Dialog(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20.0),
+                ),
+                elevation: 10,
+                backgroundColor: isDarkMode ? Color(0xFF2D2D3A) : Colors.white,
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  width: MediaQuery.of(context).size.width * 0.9,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Add an attention-grabbing celebration icon at the top
+                      TweenAnimationBuilder(
+                        duration: Duration(milliseconds: 800),
+                        tween: Tween<double>(begin: 0.5, end: 1.0),
+                        builder: (context, double value, child) {
+                          return Transform.scale(
+                            scale: value,
+                            child: child,
+                          );
+                        },
+                        child: Icon(
+                          Icons.celebration,
+                          size: 60,
+                          color: Colors.amber,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 20),
-                    Text(
-                      'Great Job Today!',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: isDarkMode ? Colors.white : Colors.black87,
+                      const SizedBox(height: 20),
+                      Text(
+                        'Great Job Today!',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: isDarkMode ? Colors.white : Colors.black87,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 20),
-                    Text(
-                      'You\'ve completed today\'s meditation journey.',
-                      style: TextStyle(
-                        fontSize: 18,
-                        color: isDarkMode ? Colors.white70 : Colors.black87,
+                      const SizedBox(height: 20),
+                      Text(
+                        'You\'ve completed today\'s meditation journey.',
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: isDarkMode ? Colors.white70 : Colors.black87,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Take this time to reflect and recharge.',
-                      style: TextStyle(
-                        fontSize: 18,
-                        color: isDarkMode ? Colors.white70 : Colors.black87,
+                      const SizedBox(height: 10),
+                      Text(
+                        'Take this time to reflect and recharge.',
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: isDarkMode ? Colors.white70 : Colors.black87,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      'Come back tomorrow for your next step.',
-                      style: TextStyle(
-                        fontSize: 18,
-                        color: isDarkMode ? Colors.white70 : Colors.black87,
+                      const SizedBox(height: 10),
+                      Text(
+                        'Come back tomorrow for your next step.',
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: isDarkMode ? Colors.white70 : Colors.black87,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 25),
-                    // Animate the button to draw attention
-                    TweenAnimationBuilder(
-                      duration: Duration(milliseconds: 1000),
-                      tween: ColorTween(
-                        begin: Colors.grey,
-                        end: isDarkMode ? Colors.deepPurple : Colors.blue,
-                      ),
-                      builder: (context, Color? color, child) {
-                        return ElevatedButton(
-                          onPressed: () {
-                            // Only pop once to close this dialog
-                            // Do not automatically return to journey screen
-                            Navigator.of(context).pop();
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: color,
-                            padding: EdgeInsets.symmetric(horizontal: 40, vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(30),
+                      const SizedBox(height: 25),
+                      // Animate the button to draw attention
+                      TweenAnimationBuilder(
+                        duration: Duration(milliseconds: 1000),
+                        tween: ColorTween(
+                          begin: Colors.grey,
+                          end: isDarkMode ? Colors.deepPurple : Colors.blue,
+                        ),
+                        builder: (context, Color? color, child) {
+                          return ElevatedButton(
+                            onPressed: () {
+                              // Only pop once to close this dialog
+                              // Do not automatically return to journey screen
+                              Navigator.of(context).pop();
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: color,
+                              padding: EdgeInsets.symmetric(horizontal: 40, vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(30),
+                              ),
                             ),
-                          ),
-                          child: Text(
-                            'OK',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                            child: Text(
+                              'OK',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
                             ),
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 10),
-                  ],
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 10),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-        );
-      },
-    ).then((_) {
-      // After dialog is closed, we can return to journey screen
-      if (mounted) {
-        print('Great Job dialog closed, returning to journey screen');
-        Navigator.of(context).pop();
-      }
+          );
+        },
+      ).then((_) {
+        // After dialog is closed, we can return to journey screen with a delay
+        Future.delayed(Duration(milliseconds: 100), () {
+          if (mounted) {
+            print('Great Job dialog closed, returning to journey screen');
+            Navigator.of(context).pop();
+          }
+        });
+      });
     });
   }
 
@@ -828,48 +843,163 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
   }
   
   Widget _buildArticleTab(ArticleContent article, bool isDarkMode) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            article.title,
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: isDarkMode ? Colors.white : Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            article.content,
-            style: TextStyle(
-              fontSize: 16,
-              height: 1.5,
-              color: isDarkMode ? Colors.white70 : Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 32),
-          if (!_isArticleCompleted)
-            Center(
-              child: ElevatedButton(
-                onPressed: _markArticleAsCompleted,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: isDarkMode ? Colors.deepPurple : Colors.blue,
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                ),
-                child: Text(
-                  article.buttonText,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+    final pages = widget.content.getAllPages();
+    final totalPages = pages.length;
+    
+    return Column(
+      children: [
+        // Page indicators
+        if (totalPages > 1)
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                for (var i = 0; i < totalPages; i++)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      height: 8,
+                      width: _currentArticlePage == i ? 24 : 8,
+                      decoration: BoxDecoration(
+                        color: _currentArticlePage == i 
+                            ? (isDarkMode ? Colors.deepPurple : Colors.blue)
+                            : Colors.grey[400],
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
                   ),
-                ),
-              ),
+              ],
             ),
-        ],
-      ),
+          ),
+        
+        // Current page content
+        Expanded(
+          child: PageView.builder(
+            controller: _pageController,
+            itemCount: totalPages,
+            onPageChanged: (index) {
+              setState(() {
+                _currentArticlePage = index;
+              });
+            },
+            itemBuilder: (context, index) {
+              final page = pages[index];
+              return SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      page.title,
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: isDarkMode ? Colors.white : Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      page.content,
+                      style: TextStyle(
+                        fontSize: 16,
+                        height: 1.5,
+                        color: isDarkMode ? Colors.white70 : Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    
+                    // Bottom navigation for pages - fixed alignment
+                    if (totalPages > 1 && index > 0)
+                      // Show back and next/complete buttons on middle/last pages
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          // Back button
+                          OutlinedButton.icon(
+                            icon: const Icon(Icons.arrow_back),
+                            label: const Text('Back'),
+                            onPressed: () {
+                              _pageController.previousPage(
+                                duration: const Duration(milliseconds: 300),
+                                curve: Curves.easeInOut,
+                              );
+                            },
+                          ),
+                          
+                          // Next or complete button
+                          if (index < totalPages - 1)
+                            ElevatedButton.icon(
+                              icon: const Icon(Icons.arrow_forward),
+                              label: Text(page.buttonText.isNotEmpty ? page.buttonText : 'Next'),
+                              onPressed: () {
+                                _pageController.nextPage(
+                                  duration: const Duration(milliseconds: 300),
+                                  curve: Curves.easeInOut,
+                                );
+                              },
+                            )
+                          else
+                            ElevatedButton.icon(
+                              icon: Icon(_isArticleCompleted ? Icons.check : Icons.check_circle_outline),
+                              label: Text(_isArticleCompleted 
+                                  ? 'Completed' 
+                                  : (page.buttonText.isNotEmpty ? page.buttonText : 'Mark as Read')),
+                              onPressed: _isArticleCompleted ? null : _markArticleAsCompleted,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: _isArticleCompleted 
+                                    ? Colors.green 
+                                    : (isDarkMode ? Colors.deepPurple : Colors.blue),
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
+                        ],
+                      )
+                    else if (totalPages > 1)
+                      // First page of multi-page article - only show "Next" button centered
+                      Center(
+                        child: ElevatedButton.icon(
+                          icon: const Icon(Icons.arrow_forward),
+                          label: Text(page.buttonText.isNotEmpty ? page.buttonText : 'Continue'),
+                          onPressed: () {
+                            _pageController.nextPage(
+                              duration: const Duration(milliseconds: 300),
+                              curve: Curves.easeInOut,
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isDarkMode ? Colors.deepPurple : Colors.blue,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                          ),
+                        ),
+                      )
+                    else
+                      // Single page article - centered "Mark as Read" button
+                      Center(
+                        child: ElevatedButton.icon(
+                          icon: Icon(_isArticleCompleted ? Icons.check : Icons.check_circle_outline),
+                          label: Text(_isArticleCompleted 
+                              ? 'Completed' 
+                              : (page.buttonText.isNotEmpty ? page.buttonText : 'Mark as Read')),
+                          onPressed: _isArticleCompleted ? null : _markArticleAsCompleted,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _isArticleCompleted 
+                                ? Colors.green 
+                                : (isDarkMode ? Colors.deepPurple : Colors.blue),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 

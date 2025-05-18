@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:axora/services/user_database_service.dart';
 import 'package:axora/services/realtime_database_service.dart';
 import 'package:axora/services/notification_service.dart';
+import 'package:axora/services/firebase_messaging_service.dart';
 
 class NotificationProvider extends ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -11,6 +12,7 @@ class NotificationProvider extends ChangeNotifier {
   final UserDatabaseService _firestoreService = UserDatabaseService();
   final RealtimeDatabaseService _realtimeDbService = RealtimeDatabaseService();
   final NotificationService _notificationService = NotificationService();
+  final FirebaseMessagingService _fcmService = FirebaseMessagingService();
   
   bool _notificationsEnabled = true;
   
@@ -20,9 +22,15 @@ class NotificationProvider extends ChangeNotifier {
   
   bool get notificationsEnabled => _notificationsEnabled;
   
-  void toggleNotifications() {
+  Future<void> toggleNotifications() async {
     _notificationsEnabled = !_notificationsEnabled;
-    _saveNotificationPreference();
+    await _saveNotificationPreference();
+    
+    // When toggling notifications, request permissions if enabling
+    if (_notificationsEnabled) {
+      await _fcmService.requestPermission();
+    }
+    
     notifyListeners();
   }
   
@@ -94,8 +102,15 @@ class NotificationProvider extends ChangeNotifier {
       // 3. Update in Realtime Database
       await _realtimeDbService.updateUserSettings(user.uid, notificationSettings);
       
-      // If notifications are disabled, cancel all notifications
-      if (!_notificationsEnabled) {
+      // 4. Handle topic subscriptions based on preference
+      if (_notificationsEnabled) {
+        // Subscribe to relevant topics
+        await _fcmService.subscribeToTopic('meditation_reminders');
+        await _fcmService.subscribeToTopic('all_users');
+      } else {
+        // Unsubscribe from topics and cancel local notifications
+        await _fcmService.unsubscribeFromTopic('meditation_reminders');
+        await _fcmService.unsubscribeFromTopic('all_users');
         await _notificationService.cancelAllNotifications();
         debugPrint('All notifications cancelled');
       }
@@ -103,6 +118,28 @@ class NotificationProvider extends ChangeNotifier {
       debugPrint('Notification preference saved successfully to all databases: enabled=$_notificationsEnabled');
     } catch (e) {
       debugPrint('Error saving notification preference: $e');
+    }
+  }
+  
+  /// Request notification permissions explicitly
+  Future<void> requestNotificationPermission() async {
+    try {
+      await _fcmService.requestPermission();
+      // Ensure notifications are enabled in our app settings regardless of permission result
+      if (!_notificationsEnabled) {
+        _notificationsEnabled = true;
+        await _saveNotificationPreference();
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Error in NotificationProvider.requestNotificationPermission: $e');
+      // Still enable notifications in our app settings even if permission request fails
+      // This way at least local notifications will work
+      if (!_notificationsEnabled) {
+        _notificationsEnabled = true;
+        await _saveNotificationPreference();
+        notifyListeners();
+      }
     }
   }
 } 

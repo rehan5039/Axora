@@ -36,6 +36,7 @@ dependencies:
   firebase_auth: ^4.17.9
   cloud_firestore: ^4.15.9
   firebase_database: ^10.4.9
+  firebase_messaging: ^14.7.20
   google_sign_in: ^6.2.1
 
   # Audio

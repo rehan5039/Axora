@@ -22,8 +22,18 @@ import 'package:axora/screens/settings_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:axora/services/meditation_service.dart';
 import 'package:axora/services/notification_service.dart';
+import 'package:axora/services/firebase_messaging_service.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
+
+// Handle background messages (when app is closed or in background)
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // Need to initialize Firebase here as well for background handling
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  debugPrint('Handling a background message: ${message.messageId}');
+}
 
 void main() async {
   // Ensure proper widget initialization
@@ -43,6 +53,9 @@ void main() async {
       options: DefaultFirebaseOptions.currentPlatform,
     );
     
+    // Set handler for background messages (when app is closed or in background)
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+    
     // Set persistence to LOCAL (keeps user logged in across refreshes)
     await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
     
@@ -57,6 +70,10 @@ void main() async {
     // Initialize notification service
     await NotificationService().init();
     debugPrint('Notification service initialized successfully');
+    
+    // Initialize Firebase Messaging Service
+    await FirebaseMessagingService().init();
+    debugPrint('Firebase Messaging service initialized successfully');
     
   } catch (e) {
     debugPrint('Error initializing Firebase: $e');

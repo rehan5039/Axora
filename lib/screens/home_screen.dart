@@ -16,6 +16,8 @@ import 'package:axora/screens/about_axora_screen.dart';
 import 'package:axora/screens/help_support_screen.dart';
 import 'package:axora/screens/meditation_reminder_screen.dart';
 import 'package:axora/screens/settings_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -33,6 +35,96 @@ class _HomeScreenState extends State<HomeScreen> {
     const StatisticsTab(),
     const ProfileTab(),
   ];
+  
+  @override
+  void initState() {
+    super.initState();
+    // Check if we've already requested permissions
+    _checkAndRequestNotificationPermission();
+  }
+  
+  Future<void> _checkAndRequestNotificationPermission() async {
+    // Skip notification permission check on web platform
+    if (kIsWeb) {
+      // For web, we'll let the browser handle permissions when needed
+      // Just mark that we've requested so we don't show our dialog
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('notification_permission_requested', true);
+      return;
+    }
+    
+    // For mobile platforms, proceed with normal flow
+    // Check if we've already asked for permission
+    final prefs = await SharedPreferences.getInstance();
+    final permissionRequested = prefs.getBool('notification_permission_requested') ?? false;
+    
+    if (!permissionRequested) {
+      // Wait a moment for the screen to be fully built
+      Future.delayed(const Duration(seconds: 1), () {
+        if (mounted) {
+          _showNotificationPermissionDialog();
+        }
+      });
+    }
+  }
+  
+  void _showNotificationPermissionDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: true, // Allow dismissing by tapping outside
+      builder: (context) => AlertDialog(
+        title: const Text('Enable Notifications'),
+        content: const Text(
+          'Axora would like to send you reminders for your daily meditation practice. '
+          'Would you like to enable notifications?'
+        ),
+        actions: [
+          TextButton(
+            child: const Text('MAYBE LATER'),
+            onPressed: () async {
+              // Remember that we've asked
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setBool('notification_permission_requested', true);
+              if (mounted) Navigator.of(context).pop();
+            },
+          ),
+          TextButton(
+            child: const Text('ALLOW'),
+            onPressed: () async {
+              // First close the dialog immediately to avoid waiting for permission
+              if (mounted) Navigator.of(context).pop();
+              
+              // Request permission and remember that we've asked
+              final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
+              
+              // Set notifications enabled regardless of permission result
+              // This will work fine even on older devices
+              if (!notificationProvider.notificationsEnabled) {
+                await notificationProvider.toggleNotifications();
+              }
+              
+              // Request FCM permission separately
+              await notificationProvider.requestNotificationPermission();
+              
+              // Remember that we've asked
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setBool('notification_permission_requested', true);
+              
+              // Show confirmation that notifications are enabled
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Notifications enabled'),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
 
   void _onItemTapped(int index) {
     setState(() {

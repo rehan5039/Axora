@@ -8,6 +8,7 @@ class MeditationContent {
   final Map<String, dynamic> audio;
   final Timestamp createdAt;
   final bool isActive;
+  final List<Map<String, dynamic>> articlePages;
 
   MeditationContent({
     required this.id,
@@ -17,6 +18,7 @@ class MeditationContent {
     required this.audio,
     required this.createdAt,
     this.isActive = true,
+    this.articlePages = const [],
   });
   
   // Simple constructor for creating a MeditationContent with just a day number
@@ -26,7 +28,8 @@ class MeditationContent {
       article = {'title': 'Day $day', 'content': ''},
       audio = {'title': 'Day $day', 'url': '', 'durationInSeconds': 0},
       createdAt = Timestamp.now(),
-      isActive = true;
+      isActive = true,
+      articlePages = [];
 
   factory MeditationContent.fromFirestore(DocumentSnapshot doc) {
     try {
@@ -63,6 +66,16 @@ class MeditationContent {
         print('Warning: audio field is missing or invalid format in document ${doc.id}');
       }
       
+      // Extract additional article pages
+      List<Map<String, dynamic>> pages = [];
+      if (data['articlePages'] is List) {
+        pages = List<Map<String, dynamic>>.from(
+          (data['articlePages'] as List).map((page) => 
+            page is Map ? Map<String, dynamic>.from(page) : {'title': 'Error', 'content': 'Invalid page format'}
+          )
+        );
+      }
+      
       final content = MeditationContent(
         id: doc.id,
         day: dayValue,
@@ -71,6 +84,7 @@ class MeditationContent {
         audio: audioData,
         createdAt: data['createdAt'] as Timestamp? ?? Timestamp.now(),
         isActive: data['isActive'] as bool? ?? true,
+        articlePages: pages,
       );
       
       print('Successfully parsed document ${doc.id} as MeditationContent: Day ${content.day}, Title: ${content.title}');
@@ -87,6 +101,7 @@ class MeditationContent {
         audio: {'title': 'Error', 'url': '', 'durationInSeconds': 0},
         createdAt: Timestamp.now(),
         isActive: false,
+        articlePages: [],
       );
     }
   }
@@ -99,7 +114,36 @@ class MeditationContent {
       'audio': audio,
       'createdAt': createdAt,
       'isActive': isActive,
+      'articlePages': articlePages,
     };
+  }
+  
+  // Get all article pages including the main article as the first page
+  List<ArticleContent> getAllPages() {
+    List<ArticleContent> allPages = [ArticleContent.fromMap(article)];
+    
+    for (var page in articlePages) {
+      allPages.add(ArticleContent.fromMap(page));
+    }
+    
+    return allPages;
+  }
+  
+  // Get the number of pages (main article + additional pages)
+  int get pageCount => 1 + articlePages.length;
+  
+  // Get a specific page (0 = main article, 1+ = additional pages)
+  ArticleContent getPage(int pageIndex) {
+    if (pageIndex == 0) {
+      return ArticleContent.fromMap(article);
+    } else if (pageIndex > 0 && pageIndex <= articlePages.length) {
+      return ArticleContent.fromMap(articlePages[pageIndex - 1]);
+    } else {
+      return ArticleContent(
+        title: 'Page Not Found',
+        content: 'The requested page does not exist.',
+      );
+    }
   }
 }
 
