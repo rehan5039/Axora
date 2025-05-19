@@ -4,6 +4,7 @@ import 'package:axora/models/meditation_content.dart';
 import 'package:axora/models/user_progress.dart';
 import 'package:axora/models/user_flow.dart';
 import 'package:axora/services/stats_service.dart';
+import 'package:axora/models/custom_meditation.dart';
 
 class MeditationService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -18,6 +19,7 @@ class MeditationService {
   CollectionReference get _progressCollection => _firestore.collection('meditation_progress');
   CollectionReference get _flowCollection => _firestore.collection('meditation_flow');
   CollectionReference get _adminsCollection => _firestore.collection('admins');
+  CollectionReference get _customMeditationCollection => _firestore.collection('custom_meditation');
   
   // Check if current user is admin
   Future<bool> isAdmin() async {
@@ -1044,31 +1046,36 @@ class MeditationService {
       }
       
       print('Current progress - currentDay: ${progress.currentDay}, lastCompletedDay: ${progress.lastCompletedDay}');
-      print('User has ${flow?.flow ?? 0} flow');
+      print('User has ${flow?.flow ?? 0} total flow (${flow?.journeyFlow ?? 0} journey flow, ${flow?.customFlow ?? 0} custom flow)');
       
-      // Check if we should unlock based on flow (always allow this)
-      if (flow != null && flow.flow > 0 && progress.currentDay < flow.flow + 1) {
-        final nextDay = flow.flow + 1;
-        print('Unlocking day $nextDay based on flow count (${flow.flow})');
+      // Check if we should unlock based on flow (now we'll only count journey flow)
+      if (flow != null && flow.earnedFromDays.isNotEmpty) {
+        // Use the journeyFlow getter to get only flow from meditation journey
+        final journeyFlowCount = flow.journeyFlow;
         
-        // Get current server time
-        final serverTimestamp = FieldValue.serverTimestamp();
-        
-        // Update progress with fixes - set both currentDay and lastCompletedDay if needed
-        Map<String, dynamic> updates = {
-          'currentDay': nextDay,
-          'lastUpdated': serverTimestamp
-        };
-        
-        // Fix lastCompletedDay if it's inconsistent with flow
-        if (progress.lastCompletedDay < flow.flow) {
-          updates['lastCompletedDay'] = flow.flow;
-          print('Fixing lastCompletedDay to match flow count: ${flow.flow}');
+        if (journeyFlowCount > 0 && progress.currentDay < journeyFlowCount + 1) {
+          final nextDay = journeyFlowCount + 1;
+          print('Unlocking day $nextDay based on journey flow count ($journeyFlowCount)');
+          
+          // Get current server time
+          final serverTimestamp = FieldValue.serverTimestamp();
+          
+          // Update progress with fixes - set both currentDay and lastCompletedDay if needed
+          Map<String, dynamic> updates = {
+            'currentDay': nextDay,
+            'lastUpdated': serverTimestamp
+          };
+          
+          // Fix lastCompletedDay if it's inconsistent with journey flow
+          if (progress.lastCompletedDay < journeyFlowCount) {
+            updates['lastCompletedDay'] = journeyFlowCount;
+            print('Fixing lastCompletedDay to match journey flow count: $journeyFlowCount');
+          }
+          
+          await _progressCollection.doc(_userId).update(updates);
+          print('Current day updated to $nextDay based on journey flow');
+          return true;
         }
-        
-        await _progressCollection.doc(_userId).update(updates);
-        print('Current day updated to $nextDay based on flow');
-        return true;
       }
       
       // Always unlock the next day if lastCompletedDay > 0
@@ -1609,6 +1616,386 @@ class MeditationService {
       return true;
     } catch (e) {
       print('Error removing article page: $e');
+      return false;
+    }
+  }
+
+  // CUSTOM MEDITATION METHODS
+  
+  // Get all custom meditation content
+  Future<List<CustomMeditation>> getCustomMeditations() async {
+    try {
+      print('Fetching all custom meditation content from Firestore...');
+      
+      final querySnapshot = await _customMeditationCollection
+          .where('isActive', isEqualTo: true)
+          .get();
+      
+      print('Retrieved ${querySnapshot.docs.length} custom meditation documents');
+      
+      if (querySnapshot.docs.isEmpty) {
+        print('No custom meditation documents found');
+        return [];
+      }
+      
+      // Convert documents to CustomMeditation objects
+      var customMeditations = querySnapshot.docs
+          .map((doc) => CustomMeditation.fromFirestore(doc))
+          .toList();
+      
+      // Sort by duration (shortest first)
+      customMeditations.sort((a, b) => a.durationMinutes.compareTo(b.durationMinutes));
+      
+      print('Successfully parsed ${customMeditations.length} custom meditation documents');
+      return customMeditations;
+    } catch (e) {
+      print('Error getting custom meditations: $e');
+      print('Stack trace: ${StackTrace.current}');
+      return [];
+    }
+  }
+  
+  // Get custom meditation by ID
+  Future<CustomMeditation?> getCustomMeditationById(String id) async {
+    try {
+      final doc = await _customMeditationCollection.doc(id).get();
+      
+      if (!doc.exists) {
+        return null;
+      }
+      
+      return CustomMeditation.fromFirestore(doc);
+    } catch (e) {
+      print('Error getting custom meditation by ID: $e');
+      return null;
+    }
+  }
+  
+  // Add custom meditation (admin only)
+  Future<bool> addCustomMeditation({
+    required String title,
+    required String description,
+    required int durationMinutes,
+    required CustomMeditationAudio audio,
+    required CustomMeditationArticle article,
+    bool isActive = true,
+  }) async {
+    try {
+      // Check if user is admin
+      if (!await isAdmin()) {
+        print('User is not authorized to add custom meditation content');
+        return false;
+      }
+
+      print('Adding new custom meditation to Firestore...');
+      
+      // Generate a unique document ID with timestamp to allow multiple items with same duration
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final docId = 'custom-$durationMinutes-minutes-$timestamp';
+      print('Using document ID: $docId');
+      
+      // Use set instead of add to specify the document ID
+      await _customMeditationCollection.doc(docId).set({
+        'title': title,
+        'description': description,
+        'durationMinutes': durationMinutes,
+        'audio': audio.toMap(),
+        'article': article.toMap(),
+        'createdAt': FieldValue.serverTimestamp(),
+        'createdBy': _userEmail,
+        'isActive': isActive,
+      });
+      
+      print('Custom meditation document added successfully with ID: $docId');
+      return true;
+    } catch (e) {
+      print('Error adding custom meditation: $e');
+      return false;
+    }
+  }
+  
+  // Update custom meditation (admin only)
+  Future<bool> updateCustomMeditation({
+    required String id,
+    required String title,
+    required String description,
+    required int durationMinutes,
+    required CustomMeditationAudio audio,
+    required CustomMeditationArticle article,
+    required bool isActive,
+  }) async {
+    try {
+      // Check if user is admin
+      if (!await isAdmin()) {
+        print('User is not authorized to update custom meditation content');
+        return false;
+      }
+      
+      final docRef = _customMeditationCollection.doc(id);
+      
+      await docRef.update({
+        'title': title,
+        'description': description,
+        'durationMinutes': durationMinutes,
+        'audio': audio.toMap(),
+        'article': article.toMap(),
+        'isActive': isActive,
+        'updatedAt': FieldValue.serverTimestamp(),
+        'updatedBy': _userEmail,
+      });
+      
+      return true;
+    } catch (e) {
+      print('Error updating custom meditation: $e');
+      return false;
+    }
+  }
+  
+  // Record completion of custom meditation
+  Future<bool> completeCustomMeditation(String id) async {
+    if (_userId == null) return false;
+    
+    try {
+      // Get the meditation to confirm it exists
+      final meditation = await getCustomMeditationById(id);
+      if (meditation == null) {
+        print('Cannot complete custom meditation: meditation not found');
+        return false;
+      }
+      
+      // Add flow based on duration (1 flow point per minute of meditation)
+      final flowToAdd = meditation.durationMinutes;
+      
+      // Get or create user flow
+      final userFlow = await getUserFlow() ?? UserFlow(
+        userId: _userId!,
+        email: _userEmail ?? '$_userId@anonymous.user',
+        flow: 0,
+        earnedFromDays: [],
+        lastMeditationDate: DateTime.now(),
+      );
+      
+      // Update the flow in Firestore - now add to BOTH total flow AND a separate customFlow field
+      // This way the user still gets total flow points but they don't affect journey unlocking
+      await _flowCollection.doc(_userId).update({
+        'flow': FieldValue.increment(flowToAdd),
+        'customFlow': FieldValue.increment(flowToAdd),
+        'lastMeditationDate': FieldValue.serverTimestamp(),
+      });
+      
+      print('Added $flowToAdd flow points for completing custom meditation (tracked separately)');
+      return true;
+    } catch (e) {
+      print('Error completing custom meditation: $e');
+      print('Stack trace: ${StackTrace.current}');
+      return false;
+    }
+  }
+  
+  // Create initial custom meditations (only for empty database)
+  Future<void> createInitialCustomMeditations() async {
+    try {
+      // Check if there are existing custom meditations
+      final existing = await getCustomMeditations();
+      if (existing.isNotEmpty) {
+        print('Custom meditations already exist, skipping initialization');
+        return;
+      }
+      
+      // Create 5-minute meditation
+      await addCustomMeditation(
+        title: '5-Minute Breathing',
+        description: 'A quick breathing meditation to center yourself',
+        durationMinutes: 5,
+        audio: CustomMeditationAudio(
+          title: '5-Minute Breathing',
+          url: 'https://example.com/meditations/5min.mp3',
+          durationInSeconds: 300,
+        ),
+        article: CustomMeditationArticle(
+          title: 'Quick Breathing Techniques',
+          content: 'This short meditation focuses on breathing techniques that can be done anywhere to quickly center yourself.',
+        ),
+      );
+      
+      // Create 10-minute meditation
+      await addCustomMeditation(
+        title: '10-Minute Body Scan',
+        description: 'A body awareness meditation',
+        durationMinutes: 10,
+        audio: CustomMeditationAudio(
+          title: '10-Minute Body Scan',
+          url: 'https://example.com/meditations/10min.mp3',
+          durationInSeconds: 600,
+        ),
+        article: CustomMeditationArticle(
+          title: 'Body Awareness Practice',
+          content: 'This meditation guides you through a body scan to increase awareness and reduce tension throughout your body.',
+        ),
+      );
+      
+      // Create 15-minute meditation
+      await addCustomMeditation(
+        title: '15-Minute Mindfulness',
+        description: 'A mindfulness practice for stress relief',
+        durationMinutes: 15,
+        audio: CustomMeditationAudio(
+          title: '15-Minute Mindfulness',
+          url: 'https://example.com/meditations/15min.mp3',
+          durationInSeconds: 900,
+        ),
+        article: CustomMeditationArticle(
+          title: 'Mindfulness for Daily Life',
+          content: 'Learn mindfulness techniques that can be incorporated into your daily routine to reduce stress and increase focus.',
+        ),
+      );
+      
+      // Create 30-minute meditation
+      await addCustomMeditation(
+        title: '30-Minute Deep Meditation',
+        description: 'A deep meditation practice for inner peace',
+        durationMinutes: 30,
+        audio: CustomMeditationAudio(
+          title: '30-Minute Deep Meditation',
+          url: 'https://example.com/meditations/30min.mp3',
+          durationInSeconds: 1800,
+        ),
+        article: CustomMeditationArticle(
+          title: 'Deep Meditation Practice',
+          content: 'This longer meditation allows you to go deeper into your practice and experience profound states of peace and clarity.',
+        ),
+      );
+      
+      print('Successfully created initial custom meditations');
+    } catch (e) {
+      print('Error creating initial custom meditations: $e');
+    }
+  }
+
+  // Retrieve all available durations from custom meditations
+  Future<List<int>> getAvailableDurations() async {
+    try {
+      // Get only active custom meditations
+      final querySnapshot = await _firestore
+          .collection('custom_meditation')
+          .where('isActive', isEqualTo: true)
+          .get();
+      
+      print('Found ${querySnapshot.docs.length} active meditation documents');
+      
+      // Extract unique durations
+      final durations = querySnapshot.docs
+          .map((doc) => CustomMeditation.fromFirestore(doc).durationMinutes)
+          .toSet()
+          .toList();
+      
+      // Sort durations in ascending order
+      durations.sort();
+      
+      print('Available durations: $durations');
+      return durations;
+    } catch (e) {
+      print('Error getting available durations: $e');
+      return [];
+    }
+  }
+
+  // Get meditations filtered by duration
+  Future<List<CustomMeditation>> getMeditationsByDuration(int duration) async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('custom_meditation')
+          .where('durationMinutes', isEqualTo: duration)
+          .where('isActive', isEqualTo: true)
+          .get();
+      
+      print('Found ${querySnapshot.docs.length} meditations for duration $duration');
+      
+      final meditations = querySnapshot.docs
+          .map((doc) => CustomMeditation.fromFirestore(doc))
+          .toList();
+      
+      // Sort by creation date (newest first)
+      meditations.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      
+      return meditations;
+    } catch (e) {
+      print('Error getting meditations by duration: $e');
+      return [];
+    }
+  }
+
+  // Get user's meditation progress
+  Future<Map<String, dynamic>> getUserMeditationProgress() async {
+    try {
+      User? user = _auth.currentUser;
+      if (user == null) {
+        return {
+          'total_flow_earned': 0,
+          'total_meditations_completed': 0,
+          'total_minutes_meditated': 0,
+          'completed_meditations': <String>[],
+        };
+      }
+      
+      final userProgressDoc = await _firestore
+          .collection('user_meditation_progress')
+          .doc(user.uid)
+          .get();
+      
+      if (!userProgressDoc.exists) {
+        return {
+          'total_flow_earned': 0,
+          'total_meditations_completed': 0,
+          'total_minutes_meditated': 0,
+          'completed_meditations': <String>[],
+        };
+      }
+      
+      final data = userProgressDoc.data() as Map<String, dynamic>;
+      
+      // Ensure completed_meditations is present and is a List<String>
+      if (!data.containsKey('completed_meditations')) {
+        data['completed_meditations'] = <String>[];
+      } else {
+        data['completed_meditations'] = List<String>.from(data['completed_meditations']);
+      }
+      
+      return data;
+    } catch (e) {
+      print('Error getting user meditation progress: $e');
+      return {
+        'total_flow_earned': 0,
+        'total_meditations_completed': 0,
+        'total_minutes_meditated': 0,
+        'completed_meditations': <String>[],
+      };
+    }
+  }
+  
+  // Check if a meditation is completed by the current user
+  Future<bool> isMeditationCompleted(String meditationId) async {
+    try {
+      User? user = _auth.currentUser;
+      if (user == null) {
+        return false;
+      }
+      
+      final userProgressDoc = await _firestore
+          .collection('user_meditation_progress')
+          .doc(user.uid)
+          .get();
+      
+      if (!userProgressDoc.exists) {
+        return false;
+      }
+      
+      final completedMeditations = List<String>.from(
+          userProgressDoc.data()?['completed_meditations'] ?? []);
+      
+      return completedMeditations.contains(meditationId);
+    } catch (e) {
+      print('Error checking if meditation is completed: $e');
       return false;
     }
   }

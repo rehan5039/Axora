@@ -18,6 +18,7 @@ import 'package:axora/screens/meditation_reminder_screen.dart';
 import 'package:axora/screens/settings_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
+import 'package:axora/screens/custom_meditation_list_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -285,6 +286,19 @@ class _MeditationTabState extends State<MeditationTab> {
             _ChallengeCard(
               title: 'Complete a 5-minute session',
               progress: 0.4,
+            ),
+            const SizedBox(height: 24),
+            _SectionTitle(title: 'Custom Meditation'),
+            const SizedBox(height: 16),
+            _CustomMeditationCard(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const CustomMeditationListScreen(),
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 24),
             _SectionTitle(title: 'Categories'),
@@ -693,6 +707,132 @@ class _JourneyCard extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CustomMeditationCard extends StatelessWidget {
+  final VoidCallback onPressed;
+
+  const _CustomMeditationCard({required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDarkMode = themeProvider.isDarkMode;
+    final backgroundColor = isDarkMode ? AppColors.darkCardBackground : AppColors.lightCardBackground;
+    final textColor = isDarkMode ? AppColors.darkText : AppColors.lightText;
+    
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: const BoxDecoration(
+                    color: AppColors.primaryGold,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.timer,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Quick Meditations',
+                        style: TextStyle(
+                          color: textColor,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '5, 10, 15, or 30 minutes',
+                        style: TextStyle(
+                          color: textColor.withOpacity(0.7),
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios,
+                  color: textColor.withOpacity(0.6),
+                  size: 16,
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _DurationBadge(minutes: 5, color: Colors.green),
+                _DurationBadge(minutes: 10, color: Colors.blue),
+                _DurationBadge(minutes: 15, color: Colors.purple),
+                _DurationBadge(minutes: 30, color: Colors.deepOrange),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DurationBadge extends StatelessWidget {
+  final int minutes;
+  final Color color;
+
+  const _DurationBadge({
+    required this.minutes,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 50,
+      height: 50,
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.15),
+        shape: BoxShape.circle,
+      ),
+      child: Center(
+        child: Text(
+          '$minutes',
+          style: TextStyle(
+            color: color,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
         ),
       ),
     );

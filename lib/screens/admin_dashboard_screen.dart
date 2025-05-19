@@ -124,6 +124,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           iconColor: isDarkMode ? Colors.purpleAccent : Colors.deepPurple,
         ),
         _buildFeatureCard(
+          icon: Icons.timer,
+          title: 'Custom Meditations',
+          subtitle: 'Manage timed meditations (5, 10, 15, 30 min)',
+          onTap: () => Navigator.of(context).pushNamed('/admin-custom-meditation'),
+          color: cardColor,
+          textColor: textColor,
+          iconColor: isDarkMode ? Colors.orangeAccent : Colors.orange,
+        ),
+        _buildFeatureCard(
           icon: Icons.people,
           title: 'User Management',
           subtitle: 'View and manage user accounts',
@@ -158,7 +167,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           },
           color: cardColor,
           textColor: textColor,
-          iconColor: isDarkMode ? Colors.orangeAccent : Colors.orange,
+          iconColor: isDarkMode ? Colors.amberAccent : Colors.amber,
         ),
       ],
     );

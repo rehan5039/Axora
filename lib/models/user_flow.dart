@@ -8,6 +8,7 @@ class UserFlow {
   final Map<String, dynamic> flowAchievements;
   final DateTime? lastMeditationDate;
   final int totalFlowLost;
+  final int customFlow;
   
   UserFlow({
     required this.userId,
@@ -17,6 +18,7 @@ class UserFlow {
     this.flowAchievements = const {},
     this.lastMeditationDate,
     this.totalFlowLost = 0,
+    this.customFlow = 0,
   });
   
   factory UserFlow.fromFirestore(DocumentSnapshot doc) {
@@ -31,6 +33,7 @@ class UserFlow {
           ? (data['lastMeditationDate'] as Timestamp).toDate() 
           : null,
       totalFlowLost: data['totalFlowLost'] ?? 0,
+      customFlow: data['customFlow'] ?? 0,
     );
   }
   
@@ -45,6 +48,7 @@ class UserFlow {
           ? Timestamp.fromDate(lastMeditationDate!) 
           : null,
       'totalFlowLost': totalFlowLost,
+      'customFlow': customFlow,
     };
   }
   
@@ -56,6 +60,7 @@ class UserFlow {
     Map<String, dynamic>? flowAchievements,
     DateTime? lastMeditationDate,
     int? totalFlowLost,
+    int? customFlow,
   }) {
     return UserFlow(
       userId: userId ?? this.userId,
@@ -65,6 +70,7 @@ class UserFlow {
       flowAchievements: flowAchievements ?? this.flowAchievements,
       lastMeditationDate: lastMeditationDate ?? this.lastMeditationDate,
       totalFlowLost: totalFlowLost ?? this.totalFlowLost,
+      customFlow: customFlow ?? this.customFlow,
     );
   }
   
@@ -93,4 +99,7 @@ class UserFlow {
       totalFlowLost: totalFlowLost + 1,
     );
   }
+  
+  // Get journey flow only (excluding custom meditation flow)
+  int get journeyFlow => earnedFromDays.length;
 } 

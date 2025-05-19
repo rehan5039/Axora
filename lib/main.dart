@@ -15,6 +15,7 @@ import 'package:axora/screens/meditation_journey_screen.dart';
 import 'package:axora/screens/admin_meditation_screen.dart';
 import 'package:axora/screens/admin_dashboard_screen.dart';
 import 'package:axora/screens/admin_user_management_screen.dart';
+import 'package:axora/screens/admin_custom_meditation_screen.dart';
 import 'package:axora/screens/contact_support_screen.dart';
 import 'package:axora/screens/community_support_screen.dart';
 import 'package:axora/screens/meditation_reminder_screen.dart';
@@ -26,6 +27,7 @@ import 'package:axora/services/firebase_messaging_service.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
+import 'package:axora/screens/custom_meditation_list_screen.dart';
 
 // Handle background messages (when app is closed or in background)
 @pragma('vm:entry-point')
@@ -222,10 +224,12 @@ class _MyAppState extends State<MyApp> {
         '/admin-meditation': (context) => const AdminMeditationScreen(),
         '/admin-dashboard': (context) => const AdminDashboardScreen(),
         '/admin-user-management': (context) => const AdminUserManagementScreen(),
+        '/admin-custom-meditation': (context) => const AdminCustomMeditationScreen(),
         '/contact-support': (context) => const ContactSupportScreen(),
         '/community-support': (context) => const CommunitySupportScreen(),
         '/meditation-reminder': (context) => const MeditationReminderScreen(),
         '/settings': (context) => const SettingsScreen(),
+        '/custom-meditations': (context) => const CustomMeditationListScreen(),
       },
     );
   }
