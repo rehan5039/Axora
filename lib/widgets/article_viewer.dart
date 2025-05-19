@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:axora/services/text_to_speech_service.dart';
 
-class ArticleViewer extends StatelessWidget {
+class ArticleViewer extends StatefulWidget {
   final String title;
   final String content;
   final VoidCallback onComplete;
@@ -13,19 +14,66 @@ class ArticleViewer extends StatelessWidget {
   });
 
   @override
+  State<ArticleViewer> createState() => _ArticleViewerState();
+}
+
+class _ArticleViewerState extends State<ArticleViewer> {
+  final TextToSpeechService _tts = TextToSpeechService();
+  bool _isPlaying = false;
+  
+  @override
+  void dispose() {
+    _tts.dispose();
+    super.dispose();
+  }
+  
+  void _toggleSpeech() {
+    if (_isPlaying) {
+      _tts.stop();
+      setState(() {
+        _isPlaying = false;
+      });
+    } else {
+      // Combine title and content for reading
+      final textToRead = "${widget.title}. ${widget.content}";
+      _tts.speak(textToRead);
+      setState(() {
+        _isPlaying = true;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: Theme.of(context).textTheme.headlineMedium,
+          // Title and Text-to-Speech Button row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  widget.title,
+                  style: Theme.of(context).textTheme.headlineMedium,
+                ),
+              ),
+              IconButton(
+                onPressed: _toggleSpeech,
+                icon: Icon(
+                  _isPlaying ? Icons.volume_up : Icons.volume_up_outlined,
+                  color: _isPlaying ? Theme.of(context).primaryColor : Colors.grey,
+                  size: 28,
+                ),
+                tooltip: _isPlaying ? 'Stop Reading' : 'Read Article',
+              ),
+            ],
           ),
           const SizedBox(height: 16.0),
           Text(
-            content,
+            widget.content,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
               height: 1.5,
             ),
@@ -33,7 +81,7 @@ class ArticleViewer extends StatelessWidget {
           const SizedBox(height: 32.0),
           Center(
             child: ElevatedButton(
-              onPressed: onComplete,
+              onPressed: widget.onComplete,
               child: const Text('Mark as Read'),
             ),
           ),

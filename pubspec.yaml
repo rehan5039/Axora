@@ -44,6 +44,7 @@ dependencies:
   just_audio_web: ^0.4.9
   audio_video_progress_bar: ^2.0.1
   rxdart: ^0.27.7
+  flutter_tts: ^3.8.5
 
   # UI packages
   google_fonts: ^6.1.0

@@ -10,6 +10,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:axora/services/stats_service.dart';
 import 'package:axora/screens/flow_intro_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:axora/services/text_to_speech_service.dart';
 
 class MeditationDayScreen extends StatefulWidget {
   final MeditationContent content;
@@ -44,6 +45,9 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
   int _currentArticlePage = 0;
   late PageController _pageController;
   
+  final TextToSpeechService _tts = TextToSpeechService();
+  final Map<int, bool> _isSpeaking = {};
+  
   @override
   void initState() {
     super.initState();
@@ -56,6 +60,7 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
   void dispose() {
     _tabController.dispose();
     _pageController.dispose();
+    _tts.dispose();
     super.dispose();
   }
   
@@ -805,6 +810,33 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
     }
   }
 
+  void _toggleSpeech(int pageIndex, String title, String content) {
+    if (_isSpeaking[pageIndex] == true) {
+      _tts.stop();
+      setState(() {
+        _isSpeaking.clear();
+      });
+    } else {
+      // Stop any currently playing speech
+      _tts.stop();
+      setState(() {
+        _isSpeaking.clear();
+        _isSpeaking[pageIndex] = true;
+      });
+      
+      // Combine title and content for reading
+      final textToRead = "$title. $content";
+      _tts.speak(textToRead);
+      _tts.setCompletionHandler(() {
+        if (mounted) {
+          setState(() {
+            _isSpeaking[pageIndex] = false;
+          });
+        }
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
@@ -891,13 +923,29 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      page.title,
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: isDarkMode ? Colors.white : Colors.black87,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            page.title,
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: isDarkMode ? Colors.white : Colors.black87,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          onPressed: () => _toggleSpeech(index, page.title, page.content),
+                          icon: Icon(
+                            _isSpeaking[index] == true ? Icons.volume_up : Icons.volume_up_outlined,
+                            color: _isSpeaking[index] == true ? (isDarkMode ? Colors.deepPurple : Colors.blue) : Colors.grey,
+                            size: 28,
+                          ),
+                          tooltip: _isSpeaking[index] == true ? 'Stop Reading' : 'Read Article',
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 16),
                     Text(
