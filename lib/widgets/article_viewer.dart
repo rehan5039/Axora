@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:axora/services/text_to_speech_service.dart';
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class ArticleViewer extends StatefulWidget {
   final String title;
@@ -43,6 +45,9 @@ class _ArticleViewerState extends State<ArticleViewer> {
     }
   }
 
+  // Check if the platform is Android
+  bool get _isAndroid => !kIsWeb && Platform.isAndroid;
+
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -60,15 +65,17 @@ class _ArticleViewerState extends State<ArticleViewer> {
                   style: Theme.of(context).textTheme.headlineMedium,
                 ),
               ),
-              IconButton(
-                onPressed: _toggleSpeech,
-                icon: Icon(
-                  _isPlaying ? Icons.volume_up : Icons.volume_up_outlined,
-                  color: _isPlaying ? Theme.of(context).primaryColor : Colors.grey,
-                  size: 28,
+              // Only show the TTS button on Android platforms
+              if (_isAndroid)
+                IconButton(
+                  onPressed: _toggleSpeech,
+                  icon: Icon(
+                    _isPlaying ? Icons.volume_up : Icons.volume_up_outlined,
+                    color: _isPlaying ? Theme.of(context).primaryColor : Colors.grey,
+                    size: 28,
+                  ),
+                  tooltip: _isPlaying ? 'Stop Reading' : 'Read Article',
                 ),
-                tooltip: _isPlaying ? 'Stop Reading' : 'Read Article',
-              ),
             ],
           ),
           const SizedBox(height: 16.0),

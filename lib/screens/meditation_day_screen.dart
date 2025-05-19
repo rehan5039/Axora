@@ -11,6 +11,8 @@ import 'package:axora/services/stats_service.dart';
 import 'package:axora/screens/flow_intro_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:axora/services/text_to_speech_service.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:io' show Platform;
 
 class MeditationDayScreen extends StatefulWidget {
   final MeditationContent content;
@@ -47,6 +49,9 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
   
   final TextToSpeechService _tts = TextToSpeechService();
   final Map<int, bool> _isSpeaking = {};
+  
+  // Check if the platform is Android
+  bool get _isAndroid => !kIsWeb && Platform.isAndroid;
   
   @override
   void initState() {
@@ -936,15 +941,17 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
                             ),
                           ),
                         ),
-                        IconButton(
-                          onPressed: () => _toggleSpeech(index, page.title, page.content),
-                          icon: Icon(
-                            _isSpeaking[index] == true ? Icons.volume_up : Icons.volume_up_outlined,
-                            color: _isSpeaking[index] == true ? (isDarkMode ? Colors.deepPurple : Colors.blue) : Colors.grey,
-                            size: 28,
+                        // Only show TTS button on Android
+                        if (_isAndroid)
+                          IconButton(
+                            onPressed: () => _toggleSpeech(index, page.title, page.content),
+                            icon: Icon(
+                              _isSpeaking[index] == true ? Icons.volume_up : Icons.volume_up_outlined,
+                              color: _isSpeaking[index] == true ? (isDarkMode ? Colors.deepPurple : Colors.blue) : Colors.grey,
+                              size: 28,
+                            ),
+                            tooltip: _isSpeaking[index] == true ? 'Stop Reading' : 'Read Article',
                           ),
-                          tooltip: _isSpeaking[index] == true ? 'Stop Reading' : 'Read Article',
-                        ),
                       ],
                     ),
                     const SizedBox(height: 16),
