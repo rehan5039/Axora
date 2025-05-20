@@ -16,6 +16,22 @@ service cloud.firestore {
       allow write, delete: if request.auth != null && (request.auth.uid == userId || isAdmin());
     }
 
+    // Challenge collection rules
+    match /challenges/{challengeId} {
+      // Anyone authenticated can read challenges
+      allow read: if request.auth != null;
+      // Only admins can create, update or delete challenges
+      allow write, delete: if request.auth != null && isAdmin();
+    }
+    
+    // User challenge progress rules
+    match /userChallenges/{userId}/{challengeId}/{document=**} {
+      // Allow user to read/write their own challenge progress
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      // Allow admins to read/write any user's challenge progress
+      allow read, write, delete: if request.auth != null && isAdmin();
+    }
+
     // User profiles with subcollections for tracking completed content
     match /user_profiles/{userId} {
       // Allow read/write to the main document for user or admin

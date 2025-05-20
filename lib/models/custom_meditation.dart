@@ -6,7 +6,7 @@ class CustomMeditation {
   final String description;
   final int durationMinutes;
   final Map<String, dynamic> audio;
-  final Map<String, dynamic> article;
+  final Map<String, dynamic>? article;
   final Timestamp createdAt;
   final bool isActive;
 
@@ -16,7 +16,7 @@ class CustomMeditation {
     required this.description,
     required this.durationMinutes,
     required this.audio,
-    required this.article,
+    this.article,
     required this.createdAt,
     this.isActive = true,
   });
@@ -37,15 +37,12 @@ class CustomMeditation {
         };
       }
       
-      // Extract article data
-      Map<String, dynamic> articleData;
+      // Extract article data (now optional)
+      Map<String, dynamic>? articleData;
       if (data['article'] is Map) {
         articleData = Map<String, dynamic>.from(data['article'] as Map);
       } else {
-        articleData = {
-          'title': 'No article', 
-          'content': 'No content available'
-        };
+        articleData = null;
       }
       
       return CustomMeditation(
@@ -67,7 +64,7 @@ class CustomMeditation {
         description: 'There was an error loading this content',
         durationMinutes: 0,
         audio: {'title': 'Error', 'url': '', 'durationInSeconds': 0},
-        article: {'title': 'Error', 'content': 'There was an error loading this content'},
+        article: null,
         createdAt: Timestamp.now(),
         isActive: false,
       );
@@ -75,15 +72,21 @@ class CustomMeditation {
   }
 
   Map<String, dynamic> toFirestore() {
-    return {
+    final Map<String, dynamic> data = {
       'title': title,
       'description': description,
       'durationMinutes': durationMinutes,
       'audio': audio,
-      'article': article,
       'createdAt': createdAt,
       'isActive': isActive,
     };
+    
+    // Only add article if it exists
+    if (article != null) {
+      data['article'] = article;
+    }
+    
+    return data;
   }
 }
 
@@ -91,11 +94,13 @@ class CustomMeditationAudio {
   final String title;
   final String url;
   final int durationInSeconds;
+  final String? audioScript;
   
   CustomMeditationAudio({
     required this.title,
     required this.url,
     required this.durationInSeconds,
+    this.audioScript,
   });
   
   factory CustomMeditationAudio.fromMap(Map<String, dynamic> map) {
@@ -103,15 +108,24 @@ class CustomMeditationAudio {
       title: map['title'] ?? '',
       url: map['url'] ?? '',
       durationInSeconds: map['durationInSeconds'] ?? 0,
+      // Check both keys for audio script for backward compatibility
+      audioScript: map['audio-script'] ?? map['audioScript'],
     );
   }
   
   Map<String, dynamic> toMap() {
-    return {
+    final map = {
       'title': title,
       'url': url,
       'durationInSeconds': durationInSeconds,
     };
+    
+    // Always use the same key for audioScript
+    if (audioScript != null && audioScript!.isNotEmpty) {
+      map['audio-script'] = audioScript!;
+    }
+    
+    return map;
   }
 }
 

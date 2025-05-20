@@ -28,6 +28,11 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:axora/screens/custom_meditation_list_screen.dart';
+import 'package:axora/screens/challenge_list_screen.dart';
+import 'package:axora/screens/challenge_detail_screen.dart';
+import 'package:axora/screens/admin_challenge_management_screen.dart';
+import 'package:axora/screens/add_edit_challenge_screen.dart';
+import 'package:axora/models/challenge.dart';
 
 // Handle background messages (when app is closed or in background)
 @pragma('vm:entry-point')
@@ -230,6 +235,18 @@ class _MyAppState extends State<MyApp> {
         '/meditation-reminder': (context) => const MeditationReminderScreen(),
         '/settings': (context) => const SettingsScreen(),
         '/custom-meditations': (context) => const CustomMeditationListScreen(),
+        '/challenge-list': (context) => const ChallengeListScreen(),
+        '/admin-challenge-management': (context) => const AdminChallengeManagementScreen(),
+        '/add-challenge': (context) => const AddEditChallengeScreen(),
+      },
+      onGenerateRoute: (settings) {
+        if (settings.name == '/challenge-detail') {
+          final challenge = settings.arguments as Challenge;
+          return MaterialPageRoute(
+            builder: (context) => ChallengeDetailScreen(challenge: challenge),
+          );
+        }
+        return null;
       },
     );
   }

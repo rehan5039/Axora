@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:axora/services/meditation_service.dart';
 import 'package:provider/provider.dart';
 import 'package:axora/providers/theme_provider.dart';
+import 'package:axora/screens/admin_challenge_management_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -154,6 +155,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           color: cardColor,
           textColor: textColor,
           iconColor: isDarkMode ? Colors.greenAccent : Colors.green,
+        ),
+        _buildFeatureCard(
+          icon: Icons.emoji_events,
+          title: 'Challenges',
+          subtitle: 'Create and manage user challenges and polls',
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const AdminChallengeManagementScreen(),
+              ),
+            );
+          },
+          color: cardColor,
+          textColor: textColor,
+          iconColor: isDarkMode ? Colors.redAccent : Colors.red,
         ),
         _buildFeatureCard(
           icon: Icons.settings,

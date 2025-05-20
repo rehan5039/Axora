@@ -1726,7 +1726,7 @@ class MeditationService {
     required String description,
     required int durationMinutes,
     required CustomMeditationAudio audio,
-    required CustomMeditationArticle article,
+    CustomMeditationArticle? article,
     bool isActive = true,
   }) async {
     try {
@@ -1743,17 +1743,24 @@ class MeditationService {
       final docId = 'custom-$durationMinutes-minutes-$timestamp';
       print('Using document ID: $docId');
       
-      // Use set instead of add to specify the document ID
-      await _customMeditationCollection.doc(docId).set({
+      // Create a data map with audio information properly converted
+      final Map<String, dynamic> data = {
         'title': title,
         'description': description,
         'durationMinutes': durationMinutes,
-        'audio': audio.toMap(),
-        'article': article.toMap(),
+        'audio': audio.toMap(), // This will now properly include audio-script if present
         'createdAt': FieldValue.serverTimestamp(),
         'createdBy': _userEmail,
         'isActive': isActive,
-      });
+      };
+      
+      // Add article only if it's not null
+      if (article != null) {
+        data['article'] = article.toMap();
+      }
+      
+      // Use set instead of add to specify the document ID
+      await _customMeditationCollection.doc(docId).set(data);
       
       print('Custom meditation document added successfully with ID: $docId');
       return true;
@@ -1770,7 +1777,7 @@ class MeditationService {
     required String description,
     required int durationMinutes,
     required CustomMeditationAudio audio,
-    required CustomMeditationArticle article,
+    CustomMeditationArticle? article,
     required bool isActive,
   }) async {
     try {
@@ -1782,20 +1789,45 @@ class MeditationService {
       
       final docRef = _customMeditationCollection.doc(id);
       
-      await docRef.update({
+      // First get existing document to verify changes
+      final existingDoc = await docRef.get();
+      if (!existingDoc.exists) {
+        print('Cannot update: document does not exist');
+        return false;
+      }
+      
+      print('Updating custom meditation with ID: $id');
+      print('Audio script provided: ${audio.audioScript != null ? 'Yes (${audio.audioScript!.length} chars)' : 'No'}');
+      
+      // Create a data map, ensuring audio script is properly included
+      final Map<String, dynamic> data = {
         'title': title,
         'description': description,
         'durationMinutes': durationMinutes,
-        'audio': audio.toMap(),
-        'article': article.toMap(),
+        'audio': audio.toMap(), // This will include audio-script if present
         'isActive': isActive,
         'updatedAt': FieldValue.serverTimestamp(),
         'updatedBy': _userEmail,
-      });
+      };
+      
+      // Add article only if it's not null
+      if (article != null) {
+        data['article'] = article.toMap();
+      } else {
+        // If article is null and we're updating, remove the article field
+        data['article'] = FieldValue.delete();
+      }
+      
+      // Log the audio data being sent
+      print('Audio data being saved: ${data['audio']}');
+      
+      await docRef.update(data);
+      print('Custom meditation updated successfully');
       
       return true;
     } catch (e) {
       print('Error updating custom meditation: $e');
+      print('Stack trace: ${StackTrace.current}');
       return false;
     }
   }

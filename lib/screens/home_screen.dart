@@ -19,6 +19,9 @@ import 'package:axora/screens/settings_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 import 'package:axora/screens/custom_meditation_list_screen.dart';
+import 'package:axora/models/challenge.dart';
+import 'package:axora/services/challenge_service.dart';
+import 'package:axora/screens/challenge_detail_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -203,13 +206,17 @@ class MeditationTab extends StatefulWidget {
 
 class _MeditationTabState extends State<MeditationTab> {
   final _meditationService = MeditationService();
+  final _challengeService = ChallengeService();
   UserProgress? _userProgress;
+  List<Challenge> _challenges = [];
   bool _isLoading = true;
+  bool _isLoadingChallenges = true;
   
   @override
   void initState() {
     super.initState();
     _loadUserProgress();
+    _loadChallenges();
   }
   
   Future<void> _loadUserProgress() async {
@@ -231,6 +238,43 @@ class _MeditationTabState extends State<MeditationTab> {
     }
   }
 
+  Future<void> _loadChallenges() async {
+    setState(() {
+      _isLoadingChallenges = true;
+    });
+    
+    try {
+      final challenges = await _challengeService.getActiveChallenges();
+      setState(() {
+        // Sort challenges to put incomplete ones first
+        _challenges = challenges..sort((a, b) => 
+          a.isCompleted == b.isCompleted ? 0 : (a.isCompleted ? 1 : -1));
+        _isLoadingChallenges = false;
+      });
+    } catch (e) {
+      print('Error loading challenges: $e');
+      setState(() {
+        _challenges = [];
+        _isLoadingChallenges = false;
+      });
+    }
+  }
+
+  // Get appropriate greeting based on time of day
+  String _getGreeting() {
+    final hour = DateTime.now().hour;
+    
+    if (hour >= 5 && hour < 12) {
+      return 'Good Morning,';
+    } else if (hour >= 12 && hour < 18) {
+      return 'Good Afternoon,';
+    } else if (hour >= 18 && hour < 22) {
+      return 'Good Evening,';
+    } else {
+      return 'Good Night,';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
@@ -241,74 +285,125 @@ class _MeditationTabState extends State<MeditationTab> {
     final userName = user?.displayName ?? 'Alex';
     
     return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Good Morning,',
-              style: headingStyle,
-            ),
-            Text(
-              userName,
-              style: headingStyle,
-            ),
-            const SizedBox(height: 24),
-            _QuickActionButton(
-              label: 'Start a Quick Meditation',
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const MeditationJourneyScreen(),
-                  ),
-                ).then((_) => _loadUserProgress());
-              },
-            ),
-            const SizedBox(height: 24),
-            _SectionTitle(title: 'Your Meditation Journey'),
-            const SizedBox(height: 16),
-            _JourneyCard(
-              currentDay: _userProgress?.currentDay ?? 1,
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const MeditationJourneyScreen(),
-                  ),
-                ).then((_) => _loadUserProgress());
-              },
-            ),
-            const SizedBox(height: 24),
-            _SectionTitle(title: 'Today\'s Challenge'),
-            const SizedBox(height: 16),
-            _ChallengeCard(
-              title: 'Complete a 5-minute session',
-              progress: 0.4,
-            ),
-            const SizedBox(height: 24),
-            _SectionTitle(title: 'Custom Meditation'),
-            const SizedBox(height: 16),
-            _CustomMeditationCard(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const CustomMeditationListScreen(),
-                  ),
-                );
-              },
-            ),
-            const SizedBox(height: 24),
-            _SectionTitle(title: 'Categories'),
-            const SizedBox(height: 16),
-            const _CategoryGrid(),
-            const SizedBox(height: 24),
-            _SectionTitle(title: 'Top Sounds'),
-            const SizedBox(height: 16),
-            const _SoundSelector(),
-          ],
+      child: RefreshIndicator(
+        onRefresh: () async {
+          await Future.wait([
+            _loadUserProgress(),
+            _loadChallenges(),
+          ]);
+        },
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _getGreeting(),
+                style: headingStyle,
+              ),
+              Text(
+                userName,
+                style: headingStyle,
+              ),
+              const SizedBox(height: 24),
+              _QuickActionButton(
+                label: 'Start a Quick Meditation',
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const MeditationJourneyScreen(),
+                    ),
+                  ).then((_) => _loadUserProgress());
+                },
+              ),
+              const SizedBox(height: 24),
+              _SectionTitle(title: 'Your Meditation Journey'),
+              const SizedBox(height: 16),
+              _JourneyCard(
+                currentDay: _userProgress?.currentDay ?? 1,
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const MeditationJourneyScreen(),
+                    ),
+                  ).then((_) => _loadUserProgress());
+                },
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  _SectionTitle(title: 'Today\'s Challenge'),
+                  if (_challengeService.getActiveChallenges != null)
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(context).pushNamed('/challenge-list')
+                          .then((_) => _loadChallenges());
+                      },
+                      child: Text(
+                        'See All',
+                        style: TextStyle(
+                          color: isDarkMode ? AppColors.primaryGold : AppColors.primaryGreen,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _isLoadingChallenges
+                  ? const Center(child: CircularProgressIndicator())
+                  : _challenges.isEmpty
+                      ? _EmptyChallenges()
+                      : Column(
+                          children: [
+                            // Get the first challenge (which should be incomplete after sorting)
+                            _ChallengeItem(
+                              challenge: _challenges.firstWhere(
+                                (challenge) => !challenge.isCompleted,
+                                orElse: () => _challenges[0],
+                              ),
+                              onTap: () {
+                                final challenge = _challenges.firstWhere(
+                                  (challenge) => !challenge.isCompleted,
+                                  orElse: () => _challenges[0],
+                                );
+                                Navigator.of(context).pushNamed(
+                                  '/challenge-detail',
+                                  arguments: challenge,
+                                ).then((_) => _loadChallenges());
+                              },
+                              onProgressUpdate: (String id, double progress) async {
+                                await _challengeService.updateChallengeProgress(id, progress);
+                                _loadChallenges();
+                              },
+                            ),
+                          ],
+                        ),
+              const SizedBox(height: 24),
+              _SectionTitle(title: 'Custom Meditation'),
+              const SizedBox(height: 16),
+              _CustomMeditationCard(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const CustomMeditationListScreen(),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 24),
+              _SectionTitle(title: 'Categories'),
+              const SizedBox(height: 16),
+              const _CategoryGrid(),
+              const SizedBox(height: 24),
+              _SectionTitle(title: 'Top Sounds'),
+              const SizedBox(height: 16),
+              const _SoundSelector(),
+            ],
+          ),
         ),
       ),
     );
@@ -372,26 +467,18 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
-class _ChallengeCard extends StatelessWidget {
-  final String title;
-  final double progress;
-
-  const _ChallengeCard({
-    required this.title,
-    required this.progress,
-  });
-
+class _EmptyChallenges extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final isDarkMode = themeProvider.isDarkMode;
-    final backgroundColor = isDarkMode ? AppColors.darkCardBackground : AppColors.lightCardBackground;
+    final textColor = isDarkMode ? AppColors.darkText : AppColors.lightText;
     
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: backgroundColor,
+        color: isDarkMode ? AppColors.darkCardBackground : AppColors.lightCardBackground,
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
@@ -402,25 +489,29 @@ class _ChallengeCard extends StatelessWidget {
         ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Icon(
+            Icons.hourglass_empty,
+            size: 48,
+            color: isDarkMode ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+          ),
+          const SizedBox(height: 16),
           Text(
-            title,
+            'No active challenges',
             style: TextStyle(
-              color: isDarkMode ? AppColors.darkText : AppColors.lightText,
+              color: textColor,
               fontSize: 16,
               fontWeight: FontWeight.w500,
             ),
           ),
-          const SizedBox(height: 12),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: progress,
-              backgroundColor: Colors.grey.withOpacity(0.2),
-              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primaryBlue),
-              minHeight: 8,
+          const SizedBox(height: 8),
+          Text(
+            'Check back later for new challenges',
+            style: TextStyle(
+              color: isDarkMode ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+              fontSize: 14,
             ),
+            textAlign: TextAlign.center,
           ),
         ],
       ),
@@ -428,45 +519,15 @@ class _ChallengeCard extends StatelessWidget {
   }
 }
 
-class _CategoryGrid extends StatelessWidget {
-  const _CategoryGrid();
+class _ChallengeItem extends StatelessWidget {
+  final Challenge challenge;
+  final VoidCallback onTap;
+  final Function(String, double) onProgressUpdate;
 
-  @override
-  Widget build(BuildContext context) {
-    final categories = [
-      {'name': 'Focus', 'icon': Icons.center_focus_strong},
-      {'name': 'Sleep', 'icon': Icons.nightlight_round},
-      {'name': 'Productivity', 'icon': Icons.trending_up},
-      {'name': 'Deep Relaxation', 'icon': Icons.spa},
-    ];
-    
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 1.5,
-      ),
-      itemCount: categories.length,
-      itemBuilder: (context, index) {
-        return _CategoryItem(
-          name: categories[index]['name'] as String,
-          icon: categories[index]['icon'] as IconData,
-        );
-      },
-    );
-  }
-}
-
-class _CategoryItem extends StatelessWidget {
-  final String name;
-  final IconData icon;
-
-  const _CategoryItem({
-    required this.name,
-    required this.icon,
+  const _ChallengeItem({
+    required this.challenge,
+    required this.onTap,
+    required this.onProgressUpdate,
   });
 
   @override
@@ -476,10 +537,26 @@ class _CategoryItem extends StatelessWidget {
     final backgroundColor = isDarkMode ? AppColors.darkCardBackground : AppColors.lightCardBackground;
     final textColor = isDarkMode ? AppColors.darkText : AppColors.lightText;
     
+    IconData getIconForType() {
+      switch (challenge.type) {
+        case ChallengeType.meditation:
+          return Icons.self_improvement;
+        case ChallengeType.poll:
+          return Icons.poll;
+        case ChallengeType.task:
+          return Icons.task_alt;
+        case ChallengeType.quiz:
+          return Icons.quiz;
+        default:
+          return Icons.star;
+      }
+    }
+    
     return InkWell(
-      onTap: () {},
+      onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
+        width: double.infinity,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: backgroundColor,
@@ -493,117 +570,74 @@ class _CategoryItem extends StatelessWidget {
           ],
         ),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(
-              icon,
-              color: AppColors.primaryBlue,
-              size: 28,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              name,
-              style: TextStyle(
-                color: textColor,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SoundSelector extends StatelessWidget {
-  const _SoundSelector();
-
-  @override
-  Widget build(BuildContext context) {
-    final sounds = [
-      {'name': 'Nature', 'icon': Icons.eco},
-      {'name': 'Rain', 'icon': Icons.water_drop},
-      {'name': 'Waves', 'icon': Icons.waves},
-    ];
-    
-    return SizedBox(
-      height: 80,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        itemCount: sounds.length,
-        itemBuilder: (context, index) {
-          return Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: _SoundItem(
-              name: sounds[index]['name'] as String,
-              icon: sounds[index]['icon'] as IconData,
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _SoundItem extends StatelessWidget {
-  final String name;
-  final IconData icon;
-
-  const _SoundItem({
-    required this.name,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
-    final isDarkMode = themeProvider.isDarkMode;
-    final backgroundColor = isDarkMode ? AppColors.darkCardBackground : AppColors.lightCardBackground;
-    final textColor = isDarkMode ? AppColors.darkText : AppColors.lightText;
-    
-    return InkWell(
-      onTap: () {},
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        width: 80,
-        height: 80,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                color: AppColors.primaryBlue,
-                size: 20,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                name,
-                style: TextStyle(
-                  color: textColor,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500,
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryBlue.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    getIconForType(),
+                    color: AppColors.primaryBlue,
+                    size: 16,
+                  ),
                 ),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    challenge.title,
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                if (challenge.isCompleted)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text(
+                      'Completed',
+                      style: TextStyle(
+                        color: Colors.green,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            if (challenge.type != ChallengeType.poll) ...[
+              const SizedBox(height: 12),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: challenge.userProgress ?? 0.0,
+                  backgroundColor: Colors.grey.withOpacity(0.2),
+                  valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primaryBlue),
+                  minHeight: 8,
+                ),
               ),
             ],
-          ),
+            if (challenge.type == ChallengeType.poll && challenge.pollOptions != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Poll: ${challenge.description}',
+                style: TextStyle(
+                  color: isDarkMode ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );
@@ -832,6 +866,188 @@ class _DurationBadge extends StatelessWidget {
             color: color,
             fontWeight: FontWeight.bold,
             fontSize: 16,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CategoryGrid extends StatelessWidget {
+  const _CategoryGrid();
+
+  @override
+  Widget build(BuildContext context) {
+    final categories = [
+      {'name': 'Focus', 'icon': Icons.center_focus_strong},
+      {'name': 'Sleep', 'icon': Icons.nightlight_round},
+      {'name': 'Productivity', 'icon': Icons.trending_up},
+      {'name': 'Deep Relaxation', 'icon': Icons.spa},
+    ];
+    
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 1.5,
+      ),
+      itemCount: categories.length,
+      itemBuilder: (context, index) {
+        return _CategoryItem(
+          name: categories[index]['name'] as String,
+          icon: categories[index]['icon'] as IconData,
+        );
+      },
+    );
+  }
+}
+
+class _CategoryItem extends StatelessWidget {
+  final String name;
+  final IconData icon;
+
+  const _CategoryItem({
+    required this.name,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDarkMode = themeProvider.isDarkMode;
+    final backgroundColor = isDarkMode ? AppColors.darkCardBackground : AppColors.lightCardBackground;
+    final textColor = isDarkMode ? AppColors.darkText : AppColors.lightText;
+    
+    return InkWell(
+      onTap: () {},
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              color: AppColors.primaryBlue,
+              size: 28,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              name,
+              style: TextStyle(
+                color: textColor,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SoundSelector extends StatelessWidget {
+  const _SoundSelector();
+
+  @override
+  Widget build(BuildContext context) {
+    final sounds = [
+      {'name': 'Nature', 'icon': Icons.eco},
+      {'name': 'Rain', 'icon': Icons.water_drop},
+      {'name': 'Waves', 'icon': Icons.waves},
+    ];
+    
+    return SizedBox(
+      height: 80,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: sounds.length,
+        itemBuilder: (context, index) {
+          return Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: _SoundItem(
+              name: sounds[index]['name'] as String,
+              icon: sounds[index]['icon'] as IconData,
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _SoundItem extends StatelessWidget {
+  final String name;
+  final IconData icon;
+
+  const _SoundItem({
+    required this.name,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDarkMode = themeProvider.isDarkMode;
+    final backgroundColor = isDarkMode ? AppColors.darkCardBackground : AppColors.lightCardBackground;
+    final textColor = isDarkMode ? AppColors.darkText : AppColors.lightText;
+    
+    return InkWell(
+      onTap: () {},
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: 80,
+        height: 80,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                color: AppColors.primaryBlue,
+                size: 20,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                name,
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
           ),
         ),
       ),

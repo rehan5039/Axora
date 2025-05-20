@@ -16,10 +16,7 @@ class _AdminCustomMeditationScreenState extends State<AdminCustomMeditationScree
   final _meditationService = MeditationService();
   bool _isLoading = true;
   bool _isAdmin = false;
-  Map<int, List<CustomMeditation>> _meditationsByDuration = {};
-  
-  // Standard duration categories
-  final List<int> _durationCategories = [5, 10, 15, 30];
+  List<CustomMeditation> _meditations = [];
   
   // Form controllers
   final _titleController = TextEditingController();
@@ -34,6 +31,7 @@ class _AdminCustomMeditationScreenState extends State<AdminCustomMeditationScree
   String? _selectedMeditationId;
   bool _formIsActive = true;
   bool _isSubmitting = false;
+  bool _includeArticle = false;
 
   @override
   void initState() {
@@ -120,33 +118,8 @@ class _AdminCustomMeditationScreenState extends State<AdminCustomMeditationScree
       
       print('Parsed ${meditations.length} meditation objects for admin');
       
-      // Group meditations by duration
-      final Map<int, List<CustomMeditation>> grouped = {};
-      
-      // Initialize the map with empty lists for each standard duration
-      for (var duration in _durationCategories) {
-        grouped[duration] = [];
-      }
-      
-      // Add meditations to their respective duration groups
-      for (var meditation in meditations) {
-        if (grouped.containsKey(meditation.durationMinutes)) {
-          grouped[meditation.durationMinutes]!.add(meditation);
-          print('Added meditation "${meditation.title}" to ${meditation.durationMinutes} minutes group (admin)');
-        } else {
-          // Handle non-standard durations by adding them to the map
-          grouped[meditation.durationMinutes] = [meditation];
-          print('Created new group for ${meditation.durationMinutes} minutes with meditation "${meditation.title}" (admin)');
-        }
-      }
-      
-      // Debug print the grouped meditations
-      for (var entry in grouped.entries) {
-        print('Admin view: Duration ${entry.key} minutes has ${entry.value.length} meditations');
-      }
-      
       setState(() {
-        _meditationsByDuration = grouped;
+        _meditations = meditations;
         _isLoading = false;
       });
     } catch (e) {
@@ -176,10 +149,10 @@ class _AdminCustomMeditationScreenState extends State<AdminCustomMeditationScree
     _audioScriptController.clear();
     _articleTitleController.clear();
     _articleContentController.clear();
-    setState(() {
-      _selectedMeditationId = null;
-      _formIsActive = true;
-    });
+    _selectedMeditationId = null;
+    _formIsActive = true;
+    _includeArticle = false;
+    setState(() {});
   }
   
   void _loadMeditationForEdit(CustomMeditation meditation) {
@@ -195,8 +168,15 @@ class _AdminCustomMeditationScreenState extends State<AdminCustomMeditationScree
     
     // Article data
     final articleData = meditation.article;
-    _articleTitleController.text = articleData['title'] as String? ?? '';
-    _articleContentController.text = articleData['content'] as String? ?? '';
+    if (articleData != null) {
+      _includeArticle = true;
+      _articleTitleController.text = articleData['title'] as String? ?? '';
+      _articleContentController.text = articleData['content'] as String? ?? '';
+    } else {
+      _includeArticle = false;
+      _articleTitleController.clear();
+      _articleContentController.clear();
+    }
     
     setState(() {
       _selectedMeditationId = meditation.id;
@@ -210,9 +190,7 @@ class _AdminCustomMeditationScreenState extends State<AdminCustomMeditationScree
         _descriptionController.text.isEmpty ||
         _durationController.text.isEmpty ||
         _audioTitleController.text.isEmpty ||
-        _audioUrlController.text.isEmpty ||
-        _articleTitleController.text.isEmpty ||
-        _articleContentController.text.isEmpty) {
+        _audioUrlController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please fill in all required fields'),
@@ -239,17 +217,21 @@ class _AdminCustomMeditationScreenState extends State<AdminCustomMeditationScree
     });
     
     try {
-      // Create audio and article objects
+      // Create audio object
       final audio = CustomMeditationAudio(
         title: _audioTitleController.text,
         url: _audioUrlController.text,
         durationInSeconds: durationMinutes * 60,
+        audioScript: _audioScriptController.text.isNotEmpty ? _audioScriptController.text : null,
       );
       
-      final article = CustomMeditationArticle(
-        title: _articleTitleController.text,
-        content: _articleContentController.text,
-      );
+      // Create article object only if including article
+      final article = _includeArticle
+          ? CustomMeditationArticle(
+              title: _articleTitleController.text,
+              content: _articleContentController.text,
+            )
+          : null;
       
       bool success;
       
@@ -375,11 +357,19 @@ class _AdminCustomMeditationScreenState extends State<AdminCustomMeditationScree
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final isDarkMode = themeProvider.isDarkMode;
+    // Get screen size for responsive design
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isLargeScreen = screenWidth > 800;
     
     return Scaffold(
       appBar: AppBar(
         title: const Text('Manage Custom Meditations'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.add),
+            onPressed: _resetForm,
+            tooltip: 'Add New',
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _loadMeditations,
@@ -390,323 +380,129 @@ class _AdminCustomMeditationScreenState extends State<AdminCustomMeditationScree
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _isAdmin
-              ? _buildContent(isDarkMode)
+              ? _buildResponsiveContent(isLargeScreen, isDarkMode)
               : const Center(child: Text('Unauthorized Access')),
     );
   }
   
-  Widget _buildContent(bool isDarkMode) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Left side: List of meditations grouped by duration
-        Expanded(
-          flex: 1,
-          child: Card(
-            elevation: 4,
-            margin: const EdgeInsets.all(16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: _isEmpty() 
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.self_improvement,
-                            size: 48,
-                            color: isDarkMode ? Colors.white60 : Colors.black38,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'No meditations yet',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: isDarkMode ? Colors.white70 : Colors.black54,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Create one using the form',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: isDarkMode ? Colors.white60 : Colors.black45,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                : _buildDurationList(isDarkMode),
-          ),
-        ),
-        
-        // Right side: Form
-        Expanded(
-          flex: 2,
-          child: Card(
-            elevation: 4,
-            margin: const EdgeInsets.all(16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Form(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          _selectedMeditationId != null ? Icons.edit : Icons.add_circle,
-                          color: Theme.of(context).primaryColor,
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          _selectedMeditationId != null 
-                              ? 'Edit Custom Meditation' 
-                              : 'Add New Custom Meditation',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: isDarkMode ? Colors.white : Colors.black87,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                    
-                    // Basic info
-                    _buildSectionTitle('Basic Information'),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _titleController,
-                      decoration: const InputDecoration(
-                        labelText: 'Title *',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _descriptionController,
-                      decoration: const InputDecoration(
-                        labelText: 'Description *',
-                        border: OutlineInputBorder(),
-                      ),
-                      maxLines: 2,
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _durationController,
-                      decoration: const InputDecoration(
-                        labelText: 'Duration (minutes) *',
-                        border: OutlineInputBorder(),
-                        helperText: 'Recommended: 5, 10, 15, or 30 minutes',
-                      ),
-                      keyboardType: TextInputType.number,
-                    ),
-                    const SizedBox(height: 24),
-                    
-                    // Audio information
-                    _buildSectionTitle('Audio Information'),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _audioTitleController,
-                      decoration: const InputDecoration(
-                        labelText: 'Audio Title *',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _audioUrlController,
-                      decoration: const InputDecoration(
-                        labelText: 'Audio URL *',
-                        border: OutlineInputBorder(),
-                        helperText: 'Full URL to the audio file',
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _audioScriptController,
-                      decoration: const InputDecoration(
-                        labelText: 'Audio Script (Optional)',
-                        border: OutlineInputBorder(),
-                      ),
-                      maxLines: 4,
-                    ),
-                    const SizedBox(height: 24),
-                    
-                    // Article information
-                    _buildSectionTitle('Article Information'),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _articleTitleController,
-                      decoration: const InputDecoration(
-                        labelText: 'Article Title *',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _articleContentController,
-                      decoration: const InputDecoration(
-                        labelText: 'Article Content *',
-                        border: OutlineInputBorder(),
-                        alignLabelWithHint: true,
-                      ),
-                      maxLines: 8,
-                    ),
-                    const SizedBox(height: 24),
-                    
-                    // Active/Inactive toggle
-                    Row(
-                      children: [
-                        Text(
-                          'Status:',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: isDarkMode ? Colors.white : Colors.black87,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Switch(
-                          value: _formIsActive,
-                          onChanged: (value) {
-                            setState(() {
-                              _formIsActive = value;
-                            });
-                          },
-                          activeColor: Colors.green,
-                        ),
-                        Text(
-                          _formIsActive ? 'Active' : 'Inactive',
-                          style: TextStyle(
-                            color: _formIsActive ? Colors.green : Colors.red,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const Spacer(),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                    
-                    // Action buttons
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        OutlinedButton.icon(
-                          onPressed: _isSubmitting ? null : _resetForm,
-                          icon: const Icon(Icons.refresh, size: 16),
-                          label: const Text('RESET'),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        ElevatedButton.icon(
-                          onPressed: _isSubmitting ? null : _saveMeditation,
-                          icon: _isSubmitting 
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                ),
-                              )
-                            : Icon(_selectedMeditationId != null ? Icons.save : Icons.add, size: 16),
-                          label: Text(_selectedMeditationId != null ? 'UPDATE' : 'SAVE'),
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                            backgroundColor: _selectedMeditationId != null ? Colors.blue : Colors.green,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-  
-  bool _isEmpty() {
-    return _meditationsByDuration.values.every((list) => list.isEmpty);
-  }
-  
-  Widget _buildDurationList(bool isDarkMode) {
-    return ListView(
-      padding: const EdgeInsets.all(8),
-      children: [
-        // First display standard durations with items
-        ..._durationCategories
-            .where((duration) => _meditationsByDuration[duration]?.isNotEmpty ?? false)
-            .map((duration) => _buildDurationSection(duration, _meditationsByDuration[duration]!, isDarkMode)),
-        
-        // Then display non-standard durations with items
-        ..._meditationsByDuration.entries
-            .where((entry) => !_durationCategories.contains(entry.key) && entry.value.isNotEmpty)
-            .map((entry) => _buildDurationSection(entry.key, entry.value, isDarkMode)),
-        
-        // Button to add standard durations if they don't exist
-        ..._durationCategories
-            .where((duration) => _meditationsByDuration[duration]?.isEmpty ?? true)
-            .map((duration) => _buildEmptyDurationSection(duration, isDarkMode)),
-      ],
-    );
-  }
-  
-  Widget _buildDurationSection(int durationMinutes, List<CustomMeditation> meditations, bool isDarkMode) {
-    final textColor = isDarkMode ? Colors.white : Colors.black87;
-    
-    return ExpansionTile(
-      title: Row(
+  Widget _buildResponsiveContent(bool isLargeScreen, bool isDarkMode) {
+    if (isLargeScreen) {
+      // Desktop/tablet layout
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: _getDurationColor(durationMinutes),
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Text(
-                '$durationMinutes',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                ),
+          // Left side: List of meditations
+          Expanded(
+            flex: 1,
+            child: Card(
+              elevation: 4,
+              margin: const EdgeInsets.all(16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
               ),
+              child: _meditations.isEmpty 
+                  ? _buildEmptyState(isDarkMode)
+                  : _buildMeditationList(isDarkMode),
             ),
           ),
-          const SizedBox(width: 12),
+          
+          // Right side: Form
           Expanded(
-            child: Text(
-              '$durationMinutes Min Meditations',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: textColor,
-                overflow: TextOverflow.ellipsis,
+            flex: 2,
+            child: Card(
+              elevation: 4,
+              margin: const EdgeInsets.all(16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: _buildForm(isDarkMode),
               ),
             ),
           ),
         ],
+      );
+    } else {
+      // Mobile layout
+      return Column(
+        children: [
+          // Top: Meditation list in a collapsible container
+          ExpansionTile(
+            title: Text(
+              'Custom Meditations (${_meditations.length})',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: isDarkMode ? Colors.white : Colors.black87,
+              ),
+            ),
+            children: [
+              SizedBox(
+                height: 200, // Fixed height for the list
+                child: _meditations.isEmpty 
+                    ? _buildEmptyState(isDarkMode)
+                    : _buildMeditationList(isDarkMode),
+              ),
+            ],
+          ),
+          
+          // Bottom: Form
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: _buildForm(isDarkMode),
+            ),
+          ),
+        ],
+      );
+    }
+  }
+  
+  Widget _buildEmptyState(bool isDarkMode) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.self_improvement,
+              size: 48,
+              color: isDarkMode ? Colors.white60 : Colors.black38,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'No meditations yet',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: isDarkMode ? Colors.white70 : Colors.black54,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Create one using the form',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 13,
+                color: isDarkMode ? Colors.white60 : Colors.black45,
+              ),
+            ),
+          ],
+        ),
       ),
-      initiallyExpanded: true,
-      children: [
-        ...meditations.map((meditation) => ListTile(
+    );
+  }
+  
+  Widget _buildMeditationList(bool isDarkMode) {
+    return ListView.builder(
+      padding: const EdgeInsets.all(8),
+      itemCount: _meditations.length,
+      itemBuilder: (context, index) {
+        final meditation = _meditations[index];
+        final textColor = isDarkMode ? Colors.white : Colors.black87;
+        
+        return ListTile(
           title: Text(
             meditation.title,
             style: TextStyle(
@@ -717,7 +513,7 @@ class _AdminCustomMeditationScreenState extends State<AdminCustomMeditationScree
             maxLines: 1,
           ),
           subtitle: Text(
-            meditation.description,
+            '${meditation.durationMinutes} min • ${meditation.description}',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(fontSize: 12),
@@ -752,83 +548,217 @@ class _AdminCustomMeditationScreenState extends State<AdminCustomMeditationScree
           selected: _selectedMeditationId == meditation.id,
           onTap: () => _loadMeditationForEdit(meditation),
           dense: true,
-        )),
-        ListTile(
-          title: Row(
+        );
+      },
+    );
+  }
+  
+  Widget _buildForm(bool isDarkMode) {
+    return Form(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Icon(Icons.add, size: 16, color: Theme.of(context).primaryColor),
-              const SizedBox(width: 8),
+              Icon(
+                _selectedMeditationId != null ? Icons.edit : Icons.add_circle,
+                color: Theme.of(context).primaryColor,
+              ),
+              const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  'Add New ${durationMinutes}-Min Meditation',
+                  _selectedMeditationId != null 
+                      ? 'Edit Custom Meditation' 
+                      : 'Add New Custom Meditation',
                   style: TextStyle(
-                    color: Theme.of(context).primaryColor,
-                    fontStyle: FontStyle.italic,
-                    fontSize: 13,
-                    overflow: TextOverflow.ellipsis,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: isDarkMode ? Colors.white : Colors.black87,
                   ),
                 ),
               ),
             ],
           ),
-          onTap: () {
-            _resetForm();
-            _durationController.text = durationMinutes.toString();
-          },
-          dense: true,
-        ),
-      ],
-    );
-  }
-  
-  Widget _buildEmptyDurationSection(int durationMinutes, bool isDarkMode) {
-    return ListTile(
-      title: Row(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: _getDurationColor(durationMinutes).withOpacity(0.3),
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Text(
-                '$durationMinutes',
-                style: TextStyle(
-                  color: _getDurationColor(durationMinutes),
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+          const SizedBox(height: 24),
+          
+          // Basic info section
+          _buildSectionTitle('Basic Information'),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _titleController,
+            decoration: const InputDecoration(
+              labelText: 'Title *',
+              border: OutlineInputBorder(),
             ),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'Add $durationMinutes Min',
-              style: TextStyle(
-                color: Theme.of(context).primaryColor,
-                overflow: TextOverflow.ellipsis,
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _descriptionController,
+            decoration: const InputDecoration(
+              labelText: 'Description *',
+              border: OutlineInputBorder(),
+            ),
+            maxLines: 2,
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _durationController,
+            decoration: const InputDecoration(
+              labelText: 'Duration (minutes) *',
+              border: OutlineInputBorder(),
+              helperText: 'Recommended: 5, 10, 15, or 30 minutes',
+            ),
+            keyboardType: TextInputType.number,
+          ),
+          const SizedBox(height: 16),
+          // Active toggle
+          Row(
+            children: [
+              Text(
+                'Active:',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: isDarkMode ? Colors.white : Colors.black87,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Switch(
+                value: _formIsActive,
+                onChanged: (value) {
+                  setState(() {
+                    _formIsActive = value;
+                  });
+                },
+                activeColor: Colors.green,
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          
+          // Audio information section
+          _buildSectionTitle('Audio Information'),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _audioTitleController,
+            decoration: const InputDecoration(
+              labelText: 'Audio Title *',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _audioUrlController,
+            decoration: const InputDecoration(
+              labelText: 'Audio URL *',
+              border: OutlineInputBorder(),
+              helperText: 'Full URL to the audio file',
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            controller: _audioScriptController,
+            decoration: const InputDecoration(
+              labelText: 'Audio Script',
+              border: OutlineInputBorder(),
+              hintText: 'Enter the full meditation script that matches the audio...',
+              alignLabelWithHint: true,
+            ),
+            maxLines: 6,
+          ),
+          const SizedBox(height: 24),
+          
+          // Article information section
+          _buildSectionTitle('Article Information (Optional)'),
+          Row(
+            children: [
+              Text(
+                'Include Article:',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: isDarkMode ? Colors.white : Colors.black87,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Switch(
+                value: _includeArticle,
+                onChanged: (value) {
+                  setState(() {
+                    _includeArticle = value;
+                  });
+                },
+                activeColor: Colors.deepPurpleAccent,
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (_includeArticle) ...[
+            TextFormField(
+              controller: _articleTitleController,
+              decoration: const InputDecoration(
+                labelText: 'Article Title',
+                border: OutlineInputBorder(),
               ),
             ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _articleContentController,
+              decoration: const InputDecoration(
+                labelText: 'Article Content',
+                border: OutlineInputBorder(),
+                alignLabelWithHint: true,
+              ),
+              maxLines: 6,
+            ),
+            const SizedBox(height: 24),
+          ],
+          
+          // Action buttons
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              if (_selectedMeditationId != null)
+                OutlinedButton.icon(
+                  onPressed: _isSubmitting ? null : _resetForm,
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text('NEW'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
+                ),
+              const SizedBox(width: 16),
+              ElevatedButton.icon(
+                onPressed: _isSubmitting ? null : _saveMeditation,
+                icon: _isSubmitting 
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : Icon(_selectedMeditationId != null ? Icons.save : Icons.add, size: 16),
+                label: Text(_selectedMeditationId != null ? 'UPDATE' : 'SAVE'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  backgroundColor: _selectedMeditationId != null ? Colors.blue : Colors.green,
+                ),
+              ),
+            ],
           ),
         ],
       ),
-      onTap: () {
-        _resetForm();
-        _durationController.text = durationMinutes.toString();
-      },
     );
   }
   
   Widget _buildSectionTitle(String title) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         children: [
           Container(
             width: 4,
-            height: 20,
+            height: 16,
             decoration: BoxDecoration(
               color: Theme.of(context).primaryColor,
               borderRadius: BorderRadius.circular(2),
@@ -846,20 +776,5 @@ class _AdminCustomMeditationScreenState extends State<AdminCustomMeditationScree
         ],
       ),
     );
-  }
-  
-  Color _getDurationColor(int minutes) {
-    switch (minutes) {
-      case 5:
-        return Colors.green;
-      case 10:
-        return Colors.blue;
-      case 15:
-        return Colors.purple;
-      case 30:
-        return Colors.deepOrange;
-      default:
-        return Colors.grey;
-    }
   }
 } 

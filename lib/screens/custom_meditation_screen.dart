@@ -24,20 +24,16 @@ class _CustomMeditationScreenState extends State<CustomMeditationScreen> with Si
   bool _isLoading = false;
   bool _isCompleted = false;
   bool _isAudioCompleted = false;
-  bool _isArticleCompleted = false;
   bool _isCheckingStatus = true;
-  late TabController _tabController;
   
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
     _checkCompletionStatus();
   }
   
   @override
   void dispose() {
-    _tabController.dispose();
     super.dispose();
   }
   
@@ -52,7 +48,6 @@ class _CustomMeditationScreenState extends State<CustomMeditationScreen> with Si
         setState(() {
           _isCompleted = false;
           _isAudioCompleted = false;
-          _isArticleCompleted = false;
           _isCheckingStatus = false;
         });
         return;
@@ -71,7 +66,7 @@ class _CustomMeditationScreenState extends State<CustomMeditationScreen> with Si
       
       final bool isAlreadyCompleted = completedMeditations.contains(widget.meditation.id);
       
-      // Get audio and article completion status
+      // Get audio completion status
       final userMeditationStatusDoc = await FirebaseFirestore.instance
           .collection('user_meditation_progress')
           .doc(userId)
@@ -83,80 +78,23 @@ class _CustomMeditationScreenState extends State<CustomMeditationScreen> with Si
           ? (userMeditationStatusDoc.data()?['audio_completed'] == true) 
           : false;
       
-      final isArticleDone = userMeditationStatusDoc.exists 
-          ? (userMeditationStatusDoc.data()?['article_completed'] == true) 
-          : false;
-      
       print('Checking completion status for meditation: ${widget.meditation.id}');
       print('Completed meditations: $completedMeditations');
       print('Is this meditation completed: $isAlreadyCompleted');
-      print('Audio completed: $isAudioDone, Article completed: $isArticleDone');
+      print('Audio completed: $isAudioDone');
       
       setState(() {
         _isCompleted = isAlreadyCompleted;
         _isAudioCompleted = isAudioDone;
-        _isArticleCompleted = isArticleDone;
         _isCheckingStatus = false;
       });
       
-      print('UI state updated - meditation=$_isCompleted, audio=$_isAudioCompleted, article=$_isArticleCompleted');
+      print('UI state updated - meditation=$_isCompleted, audio=$_isAudioCompleted');
     } catch (e) {
       print('Error checking completion status: $e');
       setState(() {
         _isCheckingStatus = false;
       });
-    }
-  }
-  
-  Future<void> _markArticleAsRead() async {
-    if (_isArticleCompleted) return;
-    
-    final userId = FirebaseAuth.instance.currentUser?.uid;
-    if (userId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('You need to be logged in to track progress'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-    
-    setState(() {
-      _isArticleCompleted = true;
-    });
-    
-    try {
-      // Save to Firestore
-      await FirebaseFirestore.instance
-          .collection('user_meditation_progress')
-          .doc(userId)
-          .collection('meditation_details')
-          .doc(widget.meditation.id)
-          .set({
-            'article_completed': true,
-            'last_updated': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Article marked as read!'),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 1),
-        ),
-      );
-    } catch (e) {
-      print('Error marking article as read: $e');
-      setState(() {
-        _isArticleCompleted = false;
-      });
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error marking article as read: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
     }
   }
   
@@ -166,6 +104,10 @@ class _CustomMeditationScreenState extends State<CustomMeditationScreen> with Si
     });
     
     _saveAudioCompletion();
+    // Auto-complete the meditation when audio is completed
+    if (!_isCompleted) {
+      _handleCompletion();
+    }
   }
   
   Future<void> _saveAudioCompletion() async {
@@ -276,94 +218,12 @@ class _CustomMeditationScreenState extends State<CustomMeditationScreen> with Si
                     ),
                   ),
                   
-                  // Tab bar - styled for dark mode
-                  Container(
-                    decoration: BoxDecoration(
-                      border: Border(
-                        bottom: BorderSide(
-                          color: isDarkMode ? Colors.grey[800]! : Colors.grey,
-                          width: 0.5,
-                        ),
-                      ),
-                    ),
-                    child: TabBar(
-                      controller: _tabController,
-                      indicatorColor: isDarkMode ? Colors.deepPurpleAccent : Colors.black,
-                      labelColor: isDarkMode ? Colors.white : Colors.black,
-                      unselectedLabelColor: isDarkMode ? Colors.grey[400] : Colors.grey,
-                      tabs: [
-                        Tab(
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.headphones, 
-                                size: 18,
-                                color: _tabController.index == 0 
-                                  ? (isDarkMode ? Colors.white : Colors.black)
-                                  : (isDarkMode ? Colors.grey[400] : Colors.grey),
-                              ),
-                              const SizedBox(width: 8),
-                              Text('Audio'),
-                              if (_isAudioCompleted)
-                                const Padding(
-                                  padding: EdgeInsets.only(left: 4),
-                                  child: Icon(
-                                    Icons.check_circle,
-                                    color: Colors.green,
-                                    size: 16,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                        Tab(
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.article, 
-                                size: 18,
-                                color: _tabController.index == 1 
-                                  ? (isDarkMode ? Colors.white : Colors.black)
-                                  : (isDarkMode ? Colors.grey[400] : Colors.grey),
-                              ),
-                              const SizedBox(width: 8),
-                              Text('Article'),
-                              if (_isArticleCompleted)
-                                const Padding(
-                                  padding: EdgeInsets.only(left: 4),
-                                  child: Icon(
-                                    Icons.check_circle,
-                                    color: Colors.green,
-                                    size: 16,
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  
-                  // Tab content
+                  // Audio content
                   Expanded(
-                    child: TabBarView(
-                      controller: _tabController,
-                      children: [
-                        // Audio Tab
-                        _buildAudioView(isDarkMode),
-                        
-                        // Article Tab
-                        _buildArticleView(isDarkMode),
-                      ],
-                    ),
+                    child: _buildAudioView(isDarkMode),
                   ),
                   
-                  // Completion button at the bottom
-                  if (!_isCompleted)
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: _buildCompletionButton(),
-                    ),
+                  // Removing the completion button as it will be auto-completed
                 ],
               ),
             ),
@@ -374,18 +234,86 @@ class _CustomMeditationScreenState extends State<CustomMeditationScreen> with Si
     final audioData = widget.meditation.audio;
     final audioUrl = audioData['url'] as String? ?? '';
     final audioScript = audioData['audio-script'] as String? ?? '';
-    
+    final articleData = widget.meditation.article;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (audioUrl.isNotEmpty)
-            CustomAudioPlayer(
-              audioUrl: audioUrl,
-              isDarkMode: isDarkMode,
-              audioScript: audioScript,
-              onComplete: _onAudioComplete,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (_isAudioCompleted)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: Center(
+                      child: OutlinedButton.icon(
+                        onPressed: null,
+                        icon: const Icon(Icons.check_circle, color: Colors.green),
+                        label: const Text(
+                          'Audio Completed',
+                          style: TextStyle(color: Colors.green),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Colors.green),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                CustomAudioPlayer(
+                  audioUrl: audioUrl,
+                  isDarkMode: isDarkMode,
+                  audioScript: audioScript,
+                  onComplete: _onAudioComplete,
+                ),
+                
+                // Display article if available
+                if (articleData != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 24.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          articleData['title'] as String? ?? 'Article',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: isDarkMode ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: isDarkMode 
+                              ? Colors.grey.withOpacity(0.2)
+                              : Colors.grey.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isDarkMode
+                                ? Colors.grey.withOpacity(0.3)
+                                : Colors.grey.withOpacity(0.2),
+                            ),
+                          ),
+                          child: Text(
+                            articleData['content'] as String? ?? '',
+                            style: TextStyle(
+                              fontSize: 15,
+                              height: 1.5,
+                              color: isDarkMode ? Colors.white70 : Colors.black87,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
             )
           else
             Center(
@@ -403,105 +331,13 @@ class _CustomMeditationScreenState extends State<CustomMeditationScreen> with Si
     );
   }
   
-  Widget _buildArticleView(bool isDarkMode) {
-    final articleData = widget.meditation.article;
-    final articleTitle = articleData['title'] as String? ?? 'Article';
-    final articleContent = articleData['content'] as String? ?? 'No content available.';
-    
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Article completed button - styled to match screenshot
-          if (_isArticleCompleted) 
-            Center(
-              child: OutlinedButton.icon(
-                onPressed: null,
-                icon: const Icon(Icons.check_circle, color: Colors.green),
-                label: const Text(
-                  'Article Completed',
-                  style: TextStyle(color: Colors.green),
-                ),
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Colors.green),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                ),
-              ),
-            )
-          else if (!_isArticleCompleted)
-            Center(
-              child: OutlinedButton.icon(
-                onPressed: _markArticleAsRead,
-                icon: Icon(Icons.article, 
-                  color: isDarkMode ? Colors.white : null
-                ),
-                label: Text('Mark as Read',
-                  style: TextStyle(
-                    color: isDarkMode ? Colors.white : null
-                  ),
-                ),
-                style: OutlinedButton.styleFrom(
-                  side: BorderSide(
-                    color: isDarkMode ? Colors.white70 : Colors.grey,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                ),
-              ),
-            ),
-          const SizedBox(height: 16),
-          // Article content - simple text without heading
-          Text(
-            articleContent,
-            style: TextStyle(
-              fontSize: 16, 
-              height: 1.5,
-              color: isDarkMode ? Colors.white : Colors.black87,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-  
-  Widget _buildCompletionButton() {
-    final bool canComplete = _isAudioCompleted && _isArticleCompleted;
-    
-    return ElevatedButton(
-      onPressed: canComplete && !_isLoading ? _handleCompletion : null,
-      style: ElevatedButton.styleFrom(
-        minimumSize: const Size(double.infinity, 50),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        backgroundColor: canComplete ? Colors.green : Colors.grey,
-      ),
-      child: _isLoading
-          ? const SizedBox(
-              height: 20,
-              width: 20,
-              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-            )
-          : Text(
-              canComplete 
-                ? 'Complete Meditation' 
-                : 'Complete Audio & Article First',
-              style: const TextStyle(fontSize: 16),
-            ),
-    );
-  }
-  
   Future<void> _handleCompletion() async {
     if (_isLoading || _isCompleted) return;
     
-    if (!_isAudioCompleted || !_isArticleCompleted) {
+    if (!_isAudioCompleted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please complete both audio and article first'),
+          content: Text('Please complete the audio first'),
           backgroundColor: Colors.red,
         ),
       );
@@ -539,13 +375,12 @@ class _CustomMeditationScreenState extends State<CustomMeditationScreen> with Si
           'user_id': userId,
         }, SetOptions(merge: true));
         
-        // Also update meditation details to ensure both audio and article are marked as completed
+        // Also update meditation details to ensure audio is marked as completed
         await userProgressRef
             .collection('meditation_details')
             .doc(widget.meditation.id)
             .set({
               'audio_completed': true,
-              'article_completed': true,
               'completed_at': FieldValue.serverTimestamp(),
               'duration_minutes': widget.meditation.durationMinutes,
             }, SetOptions(merge: true));
