@@ -479,6 +479,21 @@ class MeditationService {
     print('User ID: $_userId, Email: $email');
     
     try {
+      // Check if user already earned flow today
+      final earnedToday = await _hasEarnedFlowToday();
+      
+      if (earnedToday) {
+        print('User has already earned flow today, cannot earn more flow for day $day');
+        
+        // Update the lastMeditationDate to today even though no flow is added
+        await _flowCollection.doc(_userId).update({
+          'lastMeditationDate': Timestamp.now(),
+          'lastUpdated': FieldValue.serverTimestamp(),
+        });
+        
+        return true; // Consider it successful but no flow added
+      }
+      
       // Get or create user flow
       UserFlow flow;
       final userFlow = await getUserFlow();
@@ -546,7 +561,7 @@ class MeditationService {
           });
         }
         
-        // Now update with the new flow
+        // Now update with the new flow and mark that flow was earned today
         await _flowCollection.doc(_userId).set({
           'userId': _userId,
           'email': email,
@@ -555,6 +570,7 @@ class MeditationService {
           'lastMeditationDate': Timestamp.now(),
           'lastUpdated': FieldValue.serverTimestamp(),
           'flowAchievements': updatedFlow.flowAchievements,
+          'earnedFlowToday': true, // Mark that flow was earned today
         }, SetOptions(merge: true));
         
         print('Flow added successfully for day $day. Total flow: ${updatedFlow.flow}');
@@ -574,6 +590,7 @@ class MeditationService {
               'earnedFromDays': FieldValue.arrayUnion([day]),
               'lastMeditationDate': Timestamp.now(),
               'lastUpdated': FieldValue.serverTimestamp(),
+              'earnedFlowToday': true,
             });
             
             // Verify again
@@ -592,6 +609,7 @@ class MeditationService {
                   flow: 1,
                   earnedFromDays: [day],
                   lastMeditationDate: DateTime.now(),
+                  earnedFlowToday: true,
                 );
                 
                 await _flowCollection.doc(_userId).set(newFlow.toFirestore());
@@ -624,6 +642,7 @@ class MeditationService {
             flow: 1,
             earnedFromDays: [day],
             lastMeditationDate: DateTime.now(),
+            earnedFlowToday: true,
           );
           
           await _flowCollection.doc(_userId).set(lastResortFlow.toFirestore());
@@ -1321,6 +1340,36 @@ class MeditationService {
         return false;
       }
       
+      // Reset the earnedFlowToday flag at the beginning of each new day
+      final flowDoc = await _flowCollection.doc(_userId).get();
+      if (flowDoc.exists) {
+        final data = flowDoc.data() as Map<String, dynamic>;
+        if (data.containsKey('earnedFlowToday') && data['earnedFlowToday'] == true) {
+          // Get today's date (without time)
+          final now = DateTime.now();
+          final today = DateTime(now.year, now.month, now.day);
+          
+          // Get the last meditation date (without time)
+          final lastMeditationTimestamp = data['lastMeditationDate'] as Timestamp?;
+          if (lastMeditationTimestamp != null) {
+            final lastMeditationDate = lastMeditationTimestamp.toDate();
+            final lastMeditationDay = DateTime(
+              lastMeditationDate.year,
+              lastMeditationDate.month,
+              lastMeditationDate.day
+            );
+            
+            // If the lastMeditationDate is not today, reset earnedFlowToday
+            if (!lastMeditationDay.isAtSameMomentAs(today)) {
+              print('Resetting earnedFlowToday flag for a new day');
+              await _flowCollection.doc(_userId).update({
+                'earnedFlowToday': false,
+              });
+            }
+          }
+        }
+      }
+      
       // If there's no last meditation date, we can't determine if a day was missed
       if (userFlow.lastMeditationDate == null) {
         print('No last meditation date found, cannot determine if day was missed');
@@ -1751,6 +1800,45 @@ class MeditationService {
     }
   }
   
+  // Check if user already earned flow today
+  Future<bool> _hasEarnedFlowToday() async {
+    if (_userId == null) return false;
+    
+    try {
+      // Get the user's flow
+      final userFlow = await getUserFlow();
+      if (userFlow == null || userFlow.lastMeditationDate == null) {
+        return false; // No flow document or last meditation date
+      }
+      
+      // Get today's date (without time)
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      
+      // Get the last meditation date (without time)
+      final lastMeditationDate = userFlow.lastMeditationDate!;
+      final lastMeditationDay = DateTime(
+        lastMeditationDate.year,
+        lastMeditationDate.month,
+        lastMeditationDate.day
+      );
+      
+      // Check if the last meditation was today
+      if (lastMeditationDay.isAtSameMomentAs(today)) {
+        // Check if earnedFlowToday flag is set
+        final flowDoc = await _flowCollection.doc(_userId).get();
+        final data = flowDoc.data() as Map<String, dynamic>? ?? {};
+        
+        return data['earnedFlowToday'] == true;
+      }
+      
+      return false;
+    } catch (e) {
+      print('Error checking if user earned flow today: $e');
+      return false;
+    }
+  }
+  
   // Record completion of custom meditation
   Future<bool> completeCustomMeditation(String id) async {
     if (_userId == null) return false;
@@ -1763,27 +1851,50 @@ class MeditationService {
         return false;
       }
       
-      // Add flow based on duration (1 flow point per minute of meditation)
-      final flowToAdd = meditation.durationMinutes;
+      // Check if the user has a flow document
+      final flowDoc = await _flowCollection.doc(_userId).get();
+      bool flowAdded = false;
       
-      // Get or create user flow
-      final userFlow = await getUserFlow() ?? UserFlow(
-        userId: _userId!,
-        email: _userEmail ?? '$_userId@anonymous.user',
-        flow: 0,
-        earnedFromDays: [],
-        lastMeditationDate: DateTime.now(),
-      );
+      // Check if user already earned flow today
+      final earnedToday = await _hasEarnedFlowToday();
       
-      // Update the flow in Firestore - now add to BOTH total flow AND a separate customFlow field
-      // This way the user still gets total flow points but they don't affect journey unlocking
-      await _flowCollection.doc(_userId).update({
-        'flow': FieldValue.increment(flowToAdd),
-        'customFlow': FieldValue.increment(flowToAdd),
-        'lastMeditationDate': FieldValue.serverTimestamp(),
-      });
+      if (!flowDoc.exists) {
+        // User doesn't have a flow document yet, create one and add flow
+        print('Creating new flow document for user');
+        await _flowCollection.doc(_userId).set({
+          'userId': _userId,
+          'email': _userEmail ?? '$_userId@anonymous.user',
+          'flow': 1, // Add 1 flow point
+          'earnedFromDays': [],
+          'lastMeditationDate': FieldValue.serverTimestamp(),
+          'customFlow': 1, // Track in customFlow as well
+          'totalFlowLost': 0,
+          'createdAt': FieldValue.serverTimestamp(),
+          'earnedFlowToday': true, // Mark that flow was earned today
+        });
+        flowAdded = true;
+      } else if (!earnedToday) {
+        // User has a flow document but hasn't earned flow today, so add flow
+        await _flowCollection.doc(_userId).update({
+          'flow': FieldValue.increment(1),
+          'customFlow': FieldValue.increment(1),
+          'lastMeditationDate': FieldValue.serverTimestamp(),
+          'earnedFlowToday': true,
+        });
+        flowAdded = true;
+      } else {
+        // User already earned flow today, just update the lastMeditationDate
+        await _flowCollection.doc(_userId).update({
+          'lastMeditationDate': FieldValue.serverTimestamp(),
+        });
+      }
       
-      print('Added $flowToAdd flow points for completing custom meditation (tracked separately)');
+      if (flowAdded) {
+        print('Added 1 flow point for completing custom meditation');
+      } else {
+        print('Completed custom meditation (no flow points added - already earned today)');
+      }
+      
       return true;
     } catch (e) {
       print('Error completing custom meditation: $e');

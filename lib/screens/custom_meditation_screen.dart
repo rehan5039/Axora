@@ -557,9 +557,26 @@ class _CustomMeditationScreenState extends State<CustomMeditationScreen> with Si
           _isLoading = false;
         });
         
+        // Check if flow was earned from Firestore
+        final flowDoc = await FirebaseFirestore.instance
+            .collection('meditation_flow')
+            .doc(userId)
+            .get();
+        
+        final bool earnedFlowToday = flowDoc.exists ? 
+            (flowDoc.data()?['earnedFlowToday'] == true) : false;
+        
+        // Show appropriate success message based on whether flow was earned
+        final lastUpdated = flowDoc.data()?['lastUpdated'];
+        final bool justEarnedFlow = earnedFlowToday && 
+            lastUpdated != null && 
+            (lastUpdated as Timestamp).toDate().difference(DateTime.now()).inSeconds > -5;
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('+${widget.meditation.durationMinutes} Flow added!'),
+            content: Text(justEarnedFlow 
+              ? '+1 Flow added for today!' 
+              : 'Meditation completed successfully!'),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 2),
           ),

@@ -9,6 +9,7 @@ class UserFlow {
   final DateTime? lastMeditationDate;
   final int totalFlowLost;
   final int customFlow;
+  final bool earnedFlowToday;
   
   UserFlow({
     required this.userId,
@@ -19,6 +20,7 @@ class UserFlow {
     this.lastMeditationDate,
     this.totalFlowLost = 0,
     this.customFlow = 0,
+    this.earnedFlowToday = false,
   });
   
   factory UserFlow.fromFirestore(DocumentSnapshot doc) {
@@ -34,6 +36,7 @@ class UserFlow {
           : null,
       totalFlowLost: data['totalFlowLost'] ?? 0,
       customFlow: data['customFlow'] ?? 0,
+      earnedFlowToday: data['earnedFlowToday'] ?? false,
     );
   }
   
@@ -49,6 +52,7 @@ class UserFlow {
           : null,
       'totalFlowLost': totalFlowLost,
       'customFlow': customFlow,
+      'earnedFlowToday': earnedFlowToday,
     };
   }
   
@@ -61,6 +65,7 @@ class UserFlow {
     DateTime? lastMeditationDate,
     int? totalFlowLost,
     int? customFlow,
+    bool? earnedFlowToday,
   }) {
     return UserFlow(
       userId: userId ?? this.userId,
@@ -71,6 +76,7 @@ class UserFlow {
       lastMeditationDate: lastMeditationDate ?? this.lastMeditationDate,
       totalFlowLost: totalFlowLost ?? this.totalFlowLost,
       customFlow: customFlow ?? this.customFlow,
+      earnedFlowToday: earnedFlowToday ?? this.earnedFlowToday,
     );
   }
   

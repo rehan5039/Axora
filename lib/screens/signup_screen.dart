@@ -5,6 +5,8 @@ import 'package:axora/services/auth_service.dart';
 import 'package:email_validator/email_validator.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:axora/widgets/axora_logo.dart';
+import 'package:provider/provider.dart';
+import 'package:axora/providers/theme_provider.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({Key? key}) : super(key: key);
@@ -136,11 +138,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDarkMode = themeProvider.isDarkMode;
+    final textColor = isDarkMode ? Colors.white : Colors.grey[700];
+    final backgroundColor = isDarkMode ? Colors.black : Colors.white;
+    
     final screenWidth = MediaQuery.of(context).size.width;
     final inputFieldWidth = screenWidth * 0.8; // Limit width to 80% of screen
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: backgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -189,7 +196,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     textAlign: TextAlign.center,
                     style: GoogleFonts.poppins(
                       fontSize: 16,
-                      color: Colors.grey[700],
+                      color: textColor,
                     ),
                   ),
                   const SizedBox(height: 32),
@@ -200,13 +207,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       width: inputFieldWidth,
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Colors.red.shade50,
+                        color: isDarkMode ? Colors.red.shade900.withOpacity(0.3) : Colors.red.shade50,
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
                         _errorMessage,
                         style: GoogleFonts.poppins(
-                          color: Colors.red,
+                          color: isDarkMode ? Colors.red.shade200 : Colors.red,
                           fontSize: 14,
                         ),
                         textAlign: TextAlign.center,
@@ -219,13 +226,27 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     width: inputFieldWidth,
                     child: TextFormField(
                       controller: _nameController,
+                      style: TextStyle(color: isDarkMode ? Colors.white : Colors.black87),
                       decoration: InputDecoration(
                         labelText: 'Full Name',
+                        labelStyle: TextStyle(color: isDarkMode ? Colors.white70 : null),
                         hintText: 'Enter your full name',
-                        prefixIcon: const Icon(Icons.person_outline),
+                        hintStyle: TextStyle(color: isDarkMode ? Colors.white30 : null),
+                        prefixIcon: Icon(Icons.person_outline, color: isDarkMode ? Colors.white70 : null),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: isDarkMode ? Colors.white54 : Colors.grey),
                         ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: isDarkMode ? Colors.white38 : Colors.grey),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Theme.of(context).primaryColor),
+                        ),
+                        filled: isDarkMode,
+                        fillColor: isDarkMode ? Colors.grey[800] : null,
                         contentPadding: const EdgeInsets.symmetric(
                           vertical: 15,
                           horizontal: 20,
@@ -247,13 +268,27 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     child: TextFormField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
+                      style: TextStyle(color: isDarkMode ? Colors.white : Colors.black87),
                       decoration: InputDecoration(
                         labelText: 'Email',
+                        labelStyle: TextStyle(color: isDarkMode ? Colors.white70 : null),
                         hintText: 'Enter your email address',
-                        prefixIcon: const Icon(Icons.email_outlined),
+                        hintStyle: TextStyle(color: isDarkMode ? Colors.white30 : null),
+                        prefixIcon: Icon(Icons.email_outlined, color: isDarkMode ? Colors.white70 : null),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: isDarkMode ? Colors.white54 : Colors.grey),
                         ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: isDarkMode ? Colors.white38 : Colors.grey),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Theme.of(context).primaryColor),
+                        ),
+                        filled: isDarkMode,
+                        fillColor: isDarkMode ? Colors.grey[800] : null,
                         contentPadding: const EdgeInsets.symmetric(
                           vertical: 15,
                           horizontal: 20,
@@ -278,13 +313,17 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     child: TextFormField(
                       controller: _passwordController,
                       obscureText: _obscurePassword,
+                      style: TextStyle(color: isDarkMode ? Colors.white : Colors.black87),
                       decoration: InputDecoration(
                         labelText: 'Password',
+                        labelStyle: TextStyle(color: isDarkMode ? Colors.white70 : null),
                         hintText: 'Create a password',
-                        prefixIcon: const Icon(Icons.lock_outline),
+                        hintStyle: TextStyle(color: isDarkMode ? Colors.white30 : null),
+                        prefixIcon: Icon(Icons.lock_outline, color: isDarkMode ? Colors.white70 : null),
                         suffixIcon: IconButton(
                           icon: Icon(
                             _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                            color: isDarkMode ? Colors.white70 : null,
                           ),
                           onPressed: () {
                             setState(() {
@@ -294,7 +333,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: isDarkMode ? Colors.white54 : Colors.grey),
                         ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: isDarkMode ? Colors.white38 : Colors.grey),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Theme.of(context).primaryColor),
+                        ),
+                        filled: isDarkMode,
+                        fillColor: isDarkMode ? Colors.grey[800] : null,
                         contentPadding: const EdgeInsets.symmetric(
                           vertical: 15,
                           horizontal: 20,
@@ -319,13 +369,17 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     child: TextFormField(
                       controller: _confirmPasswordController,
                       obscureText: _obscureConfirmPassword,
+                      style: TextStyle(color: isDarkMode ? Colors.white : Colors.black87),
                       decoration: InputDecoration(
                         labelText: 'Confirm Password',
+                        labelStyle: TextStyle(color: isDarkMode ? Colors.white70 : null),
                         hintText: 'Confirm your password',
-                        prefixIcon: const Icon(Icons.lock_outline),
+                        hintStyle: TextStyle(color: isDarkMode ? Colors.white30 : null),
+                        prefixIcon: Icon(Icons.lock_outline, color: isDarkMode ? Colors.white70 : null),
                         suffixIcon: IconButton(
                           icon: Icon(
                             _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
+                            color: isDarkMode ? Colors.white70 : null,
                           ),
                           onPressed: () {
                             setState(() {
@@ -335,7 +389,18 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: isDarkMode ? Colors.white54 : Colors.grey),
                         ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: isDarkMode ? Colors.white38 : Colors.grey),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: Theme.of(context).primaryColor),
+                        ),
+                        filled: isDarkMode,
+                        fillColor: isDarkMode ? Colors.grey[800] : null,
                         contentPadding: const EdgeInsets.symmetric(
                           vertical: 15,
                           horizontal: 20,
@@ -388,7 +453,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       children: [
                         Expanded(
                           child: Divider(
-                            color: Colors.grey[400],
+                            color: isDarkMode ? Colors.grey[600] : Colors.grey[400],
                             thickness: 1,
                           ),
                         ),
@@ -397,14 +462,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
                           child: Text(
                             'OR',
                             style: GoogleFonts.poppins(
-                              color: Colors.grey[600],
+                              color: isDarkMode ? Colors.grey[400] : Colors.grey[600],
                               fontWeight: FontWeight.w500,
                             ),
                           ),
                         ),
                         Expanded(
                           child: Divider(
-                            color: Colors.grey[400],
+                            color: isDarkMode ? Colors.grey[600] : Colors.grey[400],
                             thickness: 1,
                           ),
                         ),
@@ -428,15 +493,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
                         style: GoogleFonts.poppins(
                           fontSize: 16,
                           fontWeight: FontWeight.w500,
-                          color: Colors.black87,
+                          color: isDarkMode ? Colors.white : Colors.black87,
                         ),
                       ),
                       onPressed: _isLoading ? null : _signUpWithGoogle,
                       style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: Colors.grey[300]!),
+                        side: BorderSide(color: isDarkMode ? Colors.grey[600]! : Colors.grey[300]!),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
+                        backgroundColor: isDarkMode ? Colors.grey[800] : null,
                       ),
                     ),
                   ),
@@ -448,7 +514,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     children: [
                       Text(
                         'Already have an account?',
-                        style: GoogleFonts.poppins(color: Colors.grey[700]),
+                        style: GoogleFonts.poppins(color: isDarkMode ? Colors.grey[300] : Colors.grey[700]),
                       ),
                       TextButton(
                         onPressed: () {
