@@ -878,6 +878,18 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> w
             child: const Text('EDIT FLOW'),
           ),
           
+          // Edit Day button
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _showEditDayDialog(user['id'] as String, email);
+            },
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.green,
+            ),
+            child: const Text('EDIT DAY'),
+          ),
+          
           // Admin status toggle button
           if (!isUserAdmin)
             TextButton(
@@ -1187,5 +1199,189 @@ class _AdminUserManagementScreenState extends State<AdminUserManagementScreen> w
         },
       ),
     );
+  }
+  
+  void _showEditDayDialog(String userId, String userEmail) {
+    final TextEditingController _dayController = TextEditingController();
+    bool _isLoading = true;
+    int _currentDay = 1;
+    
+    // Create a stateful builder to handle loading state
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setState) {
+          // Function to fetch current day
+          Future<void> _fetchCurrentDay() async {
+            setState(() {
+              _isLoading = true;
+            });
+            
+            try {
+              // Get the user's current day from Firestore
+              final progressDoc = await FirebaseFirestore.instance
+                  .collection('meditation_progress')
+                  .doc(userId)
+                  .get();
+              
+              if (progressDoc.exists && progressDoc.data() != null) {
+                final progressData = progressDoc.data()!;
+                _currentDay = (progressData['currentDay'] as num?)?.toInt() ?? 1;
+                _dayController.text = _currentDay.toString();
+              } else {
+                _currentDay = 1;
+                _dayController.text = '1';
+              }
+            } catch (e) {
+              print('Error fetching current day: $e');
+              _currentDay = 1;
+              _dayController.text = '1';
+            }
+            
+            if (mounted) {
+              setState(() {
+                _isLoading = false;
+              });
+            }
+          }
+          
+          // Fetch current day when dialog opens
+          if (_isLoading) {
+            _fetchCurrentDay();
+          }
+          
+          return AlertDialog(
+            title: const Text('Edit User Meditation Day'),
+            content: _isLoading
+                ? const Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        CircularProgressIndicator(),
+                        SizedBox(height: 16),
+                        Text('Fetching current day...'),
+                      ],
+                    ),
+                  )
+                : Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('Enter new meditation day for $userEmail:'),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Current Day: $_currentDay',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _dayController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Day Value',
+                          hintText: 'Enter a number (1 or greater)',
+                        ),
+                      ),
+                    ],
+                  ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('CANCEL'),
+              ),
+              if (!_isLoading)
+                TextButton(
+                  onPressed: () {
+                    final dayText = _dayController.text.trim();
+                    if (dayText.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please enter a day value'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                      return;
+                    }
+                    
+                    final dayValue = int.tryParse(dayText);
+                    if (dayValue == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please enter a valid number'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                      return;
+                    }
+                    
+                    if (dayValue < 1) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Day value cannot be less than 1'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                      return;
+                    }
+                    
+                    Navigator.pop(context);
+                    _editUserDay(userId, userEmail, dayValue);
+                  },
+                  child: const Text('UPDATE'),
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+  
+  Future<void> _editUserDay(String userId, String userEmail, int newDayValue) async {
+    try {
+      setState(() {
+        _isLoading = true;
+      });
+      
+      final success = await _userManagementService.editUserMeditationDay(userId, newDayValue);
+      
+      if (mounted) {
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Meditation day updated to $newDayValue for $userEmail'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          
+          // Refresh data
+          await _refreshData();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to update meditation day for $userEmail'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
+    } catch (e) {
+      print('Error editing user meditation day: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
   }
 } 

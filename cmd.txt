@@ -31,3 +31,7 @@ npm install -g firebase-tools
 $ firebase init
 
 $ firebase deploy
+
+
+The version in pubspec.yaml
+The versionCode and versionName in android/app/build.gradle.kts

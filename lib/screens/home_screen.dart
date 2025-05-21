@@ -22,6 +22,8 @@ import 'package:axora/screens/custom_meditation_list_screen.dart';
 import 'package:axora/models/challenge.dart';
 import 'package:axora/services/challenge_service.dart';
 import 'package:axora/screens/challenge_detail_screen.dart';
+import 'package:axora/widgets/scroll_to_hide_fab.dart';
+import 'package:axora/services/share_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -207,6 +209,7 @@ class MeditationTab extends StatefulWidget {
 class _MeditationTabState extends State<MeditationTab> {
   final _meditationService = MeditationService();
   final _challengeService = ChallengeService();
+  final ScrollController _scrollController = ScrollController();
   UserProgress? _userProgress;
   List<Challenge> _challenges = [];
   bool _isLoading = true;
@@ -219,44 +222,74 @@ class _MeditationTabState extends State<MeditationTab> {
     _loadChallenges();
   }
   
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+  
   Future<void> _loadUserProgress() async {
+    // Don't show loading indicator if we already have progress data
+    // Just perform a background refresh
+    final bool hasExistingProgress = _userProgress != null;
+    
     setState(() {
-      _isLoading = true;
+      if (!hasExistingProgress) {
+        _isLoading = true;
+      }
     });
     
     try {
       final progress = await _meditationService.getUserProgress();
-      setState(() {
-        _userProgress = progress;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _userProgress = progress;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       print('Error loading user progress: $e');
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
   Future<void> _loadChallenges() async {
+    // Don't show loading indicator if we already have challenges
+    // Just perform a background refresh
+    final bool hasExistingChallenges = _challenges.isNotEmpty;
+    
     setState(() {
-      _isLoadingChallenges = true;
+      if (!hasExistingChallenges) {
+        _isLoadingChallenges = true;
+      }
     });
     
     try {
       final challenges = await _challengeService.getActiveChallenges();
-      setState(() {
-        // Sort challenges to put incomplete ones first
-        _challenges = challenges..sort((a, b) => 
-          a.isCompleted == b.isCompleted ? 0 : (a.isCompleted ? 1 : -1));
-        _isLoadingChallenges = false;
-      });
+      
+      if (mounted) {
+        setState(() {
+          // Sort challenges to put incomplete ones first
+          _challenges = challenges..sort((a, b) => 
+            a.isCompleted == b.isCompleted ? 0 : (a.isCompleted ? 1 : -1));
+          _isLoadingChallenges = false;
+        });
+      }
     } catch (e) {
       print('Error loading challenges: $e');
-      setState(() {
-        _challenges = [];
-        _isLoadingChallenges = false;
-      });
+      if (mounted) {
+        setState(() {
+          // Only clear challenges if we don't have any yet
+          if (_challenges.isEmpty) {
+            _challenges = [];
+          }
+          _isLoadingChallenges = false;
+        });
+      }
     }
   }
 
@@ -285,126 +318,172 @@ class _MeditationTabState extends State<MeditationTab> {
     final userName = user?.displayName ?? 'Alex';
     
     return SafeArea(
-      child: RefreshIndicator(
-        onRefresh: () async {
-          await Future.wait([
-            _loadUserProgress(),
-            _loadChallenges(),
-          ]);
-        },
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                _getGreeting(),
-                style: headingStyle,
-              ),
-              Text(
-                userName,
-                style: headingStyle,
-              ),
-              const SizedBox(height: 24),
-              _QuickActionButton(
-                label: 'Start a Quick Meditation',
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const MeditationJourneyScreen(),
-                    ),
-                  ).then((_) => _loadUserProgress());
-                },
-              ),
-              const SizedBox(height: 24),
-              _SectionTitle(title: 'Your Meditation Journey'),
-              const SizedBox(height: 16),
-              _JourneyCard(
-                currentDay: _userProgress?.currentDay ?? 1,
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const MeditationJourneyScreen(),
-                    ),
-                  ).then((_) => _loadUserProgress());
-                },
-              ),
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Stack(
+        children: [
+          RefreshIndicator(
+            onRefresh: () async {
+              await Future.wait([
+                _loadUserProgress(),
+                _loadChallenges(),
+              ]);
+            },
+            child: SingleChildScrollView(
+              controller: _scrollController,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _SectionTitle(title: 'Today\'s Challenge'),
-                  if (_challengeService.getActiveChallenges != null)
-                    TextButton(
-                      onPressed: () {
-                        Navigator.of(context).pushNamed('/challenge-list')
-                          .then((_) => _loadChallenges());
-                      },
-                      child: Text(
-                        'See All',
-                        style: TextStyle(
-                          color: isDarkMode ? AppColors.primaryGold : AppColors.primaryGreen,
+                  Text(
+                    _getGreeting(),
+                    style: headingStyle,
+                  ),
+                  Text(
+                    userName,
+                    style: headingStyle,
+                  ),
+                  const SizedBox(height: 24),
+                  _QuickActionButton(
+                    label: 'Start a Quick Meditation',
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        PageRouteBuilder(
+                          pageBuilder: (context, animation, secondaryAnimation) => 
+                            const MeditationJourneyScreen(),
+                          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                            const begin = Offset(1.0, 0.0);
+                            const end = Offset.zero;
+                            const curve = Curves.easeInOut;
+                            var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+                            var offsetAnimation = animation.drive(tween);
+                            return SlideTransition(position: offsetAnimation, child: child);
+                          },
                         ),
-                      ),
-                    ),
+                      ).then((_) => _loadUserProgress());
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  _SectionTitle(title: 'Your Meditation Journey'),
+                  const SizedBox(height: 16),
+                  _JourneyCard(
+                    currentDay: _userProgress?.currentDay ?? 1,
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        PageRouteBuilder(
+                          pageBuilder: (context, animation, secondaryAnimation) => 
+                            const MeditationJourneyScreen(),
+                          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                            const begin = Offset(1.0, 0.0);
+                            const end = Offset.zero;
+                            const curve = Curves.easeInOut;
+                            var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+                            var offsetAnimation = animation.drive(tween);
+                            return SlideTransition(position: offsetAnimation, child: child);
+                          },
+                        ),
+                      ).then((_) => _loadUserProgress());
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _SectionTitle(title: 'Today\'s Challenge'),
+                      if (_challengeService.getActiveChallenges != null)
+                        TextButton(
+                          onPressed: () {
+                            Navigator.of(context).pushNamed('/challenge-list')
+                              .then((_) => _loadChallenges());
+                          },
+                          child: Text(
+                            'See All',
+                            style: TextStyle(
+                              color: isDarkMode ? AppColors.primaryGold : AppColors.primaryGreen,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  _isLoadingChallenges
+                      ? _ChallengeSkeleton()
+                      : _challenges.isEmpty
+                          ? _EmptyChallenges()
+                          : Column(
+                              children: [
+                                // Get the first challenge (which should be incomplete after sorting)
+                                _ChallengeItem(
+                                  challenge: _challenges.firstWhere(
+                                    (challenge) => !challenge.isCompleted,
+                                    orElse: () => _challenges[0],
+                                  ),
+                                  onTap: () {
+                                    final challenge = _challenges.firstWhere(
+                                      (challenge) => !challenge.isCompleted,
+                                      orElse: () => _challenges[0],
+                                    );
+                                    Navigator.of(context).pushNamed(
+                                      '/challenge-detail',
+                                      arguments: challenge,
+                                    ).then((_) => _loadChallenges());
+                                  },
+                                  onProgressUpdate: (String id, double progress) async {
+                                    await _challengeService.updateChallengeProgress(id, progress);
+                                    _loadChallenges();
+                                  },
+                                ),
+                              ],
+                            ),
+                  const SizedBox(height: 24),
+                  _SectionTitle(title: 'Custom Meditation'),
+                  const SizedBox(height: 16),
+                  _CustomMeditationCard(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        PageRouteBuilder(
+                          pageBuilder: (context, animation, secondaryAnimation) => 
+                            const CustomMeditationListScreen(),
+                          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                            const begin = Offset(1.0, 0.0);
+                            const end = Offset.zero;
+                            const curve = Curves.easeInOut;
+                            var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+                            var offsetAnimation = animation.drive(tween);
+                            return SlideTransition(position: offsetAnimation, child: child);
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  _SectionTitle(title: 'Categories'),
+                  const SizedBox(height: 16),
+                  const _CategoryGrid(),
+                  const SizedBox(height: 24),
+                  _SectionTitle(title: 'Top Sounds'),
+                  const SizedBox(height: 16),
+                  const _SoundSelector(),
                 ],
               ),
-              const SizedBox(height: 16),
-              _isLoadingChallenges
-                  ? const Center(child: CircularProgressIndicator())
-                  : _challenges.isEmpty
-                      ? _EmptyChallenges()
-                      : Column(
-                          children: [
-                            // Get the first challenge (which should be incomplete after sorting)
-                            _ChallengeItem(
-                              challenge: _challenges.firstWhere(
-                                (challenge) => !challenge.isCompleted,
-                                orElse: () => _challenges[0],
-                              ),
-                              onTap: () {
-                                final challenge = _challenges.firstWhere(
-                                  (challenge) => !challenge.isCompleted,
-                                  orElse: () => _challenges[0],
-                                );
-                                Navigator.of(context).pushNamed(
-                                  '/challenge-detail',
-                                  arguments: challenge,
-                                ).then((_) => _loadChallenges());
-                              },
-                              onProgressUpdate: (String id, double progress) async {
-                                await _challengeService.updateChallengeProgress(id, progress);
-                                _loadChallenges();
-                              },
-                            ),
-                          ],
-                        ),
-              const SizedBox(height: 24),
-              _SectionTitle(title: 'Custom Meditation'),
-              const SizedBox(height: 16),
-              _CustomMeditationCard(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const CustomMeditationListScreen(),
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 24),
-              _SectionTitle(title: 'Categories'),
-              const SizedBox(height: 16),
-              const _CategoryGrid(),
-              const SizedBox(height: 24),
-              _SectionTitle(title: 'Top Sounds'),
-              const SizedBox(height: 16),
-              const _SoundSelector(),
-            ],
+            ),
           ),
-        ),
+          Positioned(
+            right: 16,
+            bottom: 16,
+            child: ScrollToHideFab(
+              controller: _scrollController,
+              child: FloatingActionButton(
+                onPressed: () {
+                  ShareService.showShareDialog(context);
+                },
+                backgroundColor: isDarkMode ? AppColors.primaryGold : AppColors.primaryGreen,
+                child: const Icon(Icons.share, color: Colors.white),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1050,6 +1129,68 @@ class _SoundItem extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ChallengeSkeleton extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDarkMode = themeProvider.isDarkMode;
+    final backgroundColor = isDarkMode ? AppColors.darkCardBackground : AppColors.lightCardBackground;
+    final shimmerColor = isDarkMode ? Colors.grey[700]! : Colors.grey[300]!;
+    
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: shimmerColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Container(
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: shimmerColor,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            height: 8,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: shimmerColor,
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+        ],
       ),
     );
   }

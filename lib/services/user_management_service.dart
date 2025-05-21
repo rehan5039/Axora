@@ -658,7 +658,7 @@ class UserManagementService {
         return false;
       }
       
-      // Also update the currentStreak in user_stats to keep them in sync
+      // Also update the currentStreak in user_stats if exists
       try {
         await _userStatsCollection.doc(userId).update({
           'currentStreak': newFlowValue,
@@ -685,6 +685,75 @@ class UserManagementService {
       return true;
     } catch (e) {
       print('Error in editUserFlow: $e');
+      return false;
+    }
+  }
+  
+  // Edit user meditation day (admin only)
+  Future<bool> editUserMeditationDay(String userId, int newDayValue) async {
+    try {
+      // Check if user is admin
+      if (!await isAdmin()) {
+        print('Only admins can edit user meditation day');
+        return false;
+      }
+      
+      if (newDayValue < 1) {
+        print('Day value cannot be less than 1');
+        return false;
+      }
+      
+      print('Editing current day for user: $userId to value: $newDayValue');
+      
+      // Get user email for logging
+      String? userEmail;
+      try {
+        final userDoc = await _usersCollection.doc(userId).get();
+        if (userDoc.exists) {
+          userEmail = userDoc.get('email') as String?;
+        }
+      } catch (e) {
+        print('Error getting user email: $e');
+      }
+      
+      // First get the current day value to log it
+      int oldDayValue = 1;
+      try {
+        final progressDoc = await _progressCollection.doc(userId).get();
+        if (progressDoc.exists && progressDoc.data() != null) {
+          oldDayValue = ((progressDoc.data()! as Map<String, dynamic>)['currentDay'] as num?)?.toInt() ?? 1;
+        }
+      } catch (e) {
+        print('Error getting current day value: $e');
+      }
+      
+      // Update currentDay in meditation_progress collection
+      try {
+        await _progressCollection.doc(userId).update({
+          'currentDay': newDayValue,
+          'lastUpdated': FieldValue.serverTimestamp(),
+        });
+        print('Successfully updated current day for $userId to $newDayValue');
+      } catch (e) {
+        print('Error updating current day: $e');
+        return false;
+      }
+      
+      // Log admin action
+      await _userManagementCollection.add({
+        'action': 'edit_user_day',
+        'targetUserId': userId,
+        'targetUserEmail': userEmail,
+        'oldDayValue': oldDayValue,
+        'newDayValue': newDayValue,
+        'performedBy': _userId,
+        'performedByEmail': _userEmail,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+      
+      return true;
+    } catch (e) {
+      print('Error in editUserMeditationDay: $e');
       return false;
     }
   }

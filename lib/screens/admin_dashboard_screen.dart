@@ -3,6 +3,7 @@ import 'package:axora/services/meditation_service.dart';
 import 'package:provider/provider.dart';
 import 'package:axora/providers/theme_provider.dart';
 import 'package:axora/screens/admin_challenge_management_screen.dart';
+import 'package:axora/utils/constants.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -99,6 +100,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ),
           const SizedBox(height: 16),
           _buildFeatureGrid(isDarkMode),
+          const SizedBox(height: 24),
+          Center(
+            child: TextButton.icon(
+              icon: const Icon(Icons.security),
+              label: const Text('Admin Setup (Grant Database Permissions)'),
+              onPressed: () => Navigator.of(context).pushNamed('/admin-setup'),
+              style: TextButton.styleFrom(
+                foregroundColor: isDarkMode ? AppColors.primaryGold : AppColors.primaryGreen,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -171,6 +183,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           color: cardColor,
           textColor: textColor,
           iconColor: isDarkMode ? Colors.redAccent : Colors.red,
+        ),
+        _buildFeatureCard(
+          icon: Icons.storage,
+          title: 'Database Management',
+          subtitle: 'View and delete database items',
+          onTap: () => Navigator.of(context).pushNamed('/admin-database-management'),
+          color: cardColor,
+          textColor: textColor,
+          iconColor: isDarkMode ? Colors.tealAccent : Colors.teal,
         ),
         _buildFeatureCard(
           icon: Icons.settings,

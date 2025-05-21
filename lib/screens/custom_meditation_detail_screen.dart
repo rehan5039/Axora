@@ -63,6 +63,15 @@ class _CustomMeditationDetailScreenState extends State<CustomMeditationDetailScr
     }
   }
 
+  String? get _audioUrl => widget.meditation.audio['url'] as String?;
+  
+  String? get _articleContent {
+    if (widget.meditation.article != null) {
+      return widget.meditation.article!['content'] as String?;
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
@@ -185,7 +194,7 @@ class _CustomMeditationDetailScreenState extends State<CustomMeditationDetailScr
                   ),
                   
                   // Audio section (placeholder)
-                  if (widget.meditation.audioUrl != null && widget.meditation.audioUrl!.isNotEmpty)
+                  if (_audioUrl != null && _audioUrl!.isNotEmpty)
                     Container(
                       margin: const EdgeInsets.all(16),
                       padding: const EdgeInsets.all(20),
@@ -249,7 +258,7 @@ class _CustomMeditationDetailScreenState extends State<CustomMeditationDetailScr
                     ),
                   
                   // Content section (markdown or html would be rendered here)
-                  if (widget.meditation.articleContent != null && widget.meditation.articleContent!.isNotEmpty)
+                  if (_articleContent != null && _articleContent!.isNotEmpty)
                     Container(
                       margin: const EdgeInsets.all(16),
                       padding: const EdgeInsets.all(20),
@@ -276,7 +285,7 @@ class _CustomMeditationDetailScreenState extends State<CustomMeditationDetailScr
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            widget.meditation.articleContent ?? 'No content available',
+                            _articleContent ?? 'No content available',
                             style: TextStyle(
                               fontSize: 16,
                               color: isDarkMode ? Colors.white70 : Colors.black87,
