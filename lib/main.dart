@@ -33,8 +33,10 @@ import 'package:axora/screens/custom_meditation_list_screen.dart';
 import 'package:axora/screens/challenge_list_screen.dart';
 import 'package:axora/screens/challenge_detail_screen.dart';
 import 'package:axora/screens/admin_challenge_management_screen.dart';
+import 'package:axora/screens/admin_challenge_stats_screen.dart';
 import 'package:axora/screens/add_edit_challenge_screen.dart';
 import 'package:axora/models/challenge.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 
 // Handle background messages (when app is closed or in background)
 @pragma('vm:entry-point')
@@ -61,6 +63,10 @@ void main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+    
+    // Initialize Firebase Analytics
+    final analytics = FirebaseAnalytics.instance;
+    debugPrint('Firebase Analytics initialized successfully');
     
     // Set handler for background messages (when app is closed or in background)
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
@@ -114,6 +120,10 @@ class _MyAppState extends State<MyApp> {
   Timer? _midnightCheckTimer;
   DateTime? _lastMidnightCheck;
   final _meditationService = MeditationService();
+  
+  // Add Firebase Analytics observer
+  static FirebaseAnalytics analytics = FirebaseAnalytics.instance;
+  static FirebaseAnalyticsObserver observer = FirebaseAnalyticsObserver(analytics: analytics);
 
   @override
   void initState() {
@@ -201,6 +211,10 @@ class _MyAppState extends State<MyApp> {
       title: 'Axora',
       debugShowCheckedModeBanner: false,
       theme: themeProvider.themeData,
+      
+      // Add the analytics observer to track screen views
+      navigatorObservers: [observer],
+      
       home: StreamBuilder<User?>(
         stream: FirebaseAuth.instance.authStateChanges(),
         builder: (context, snapshot) {
@@ -241,6 +255,7 @@ class _MyAppState extends State<MyApp> {
         '/custom-meditations': (context) => const CustomMeditationListScreen(),
         '/challenge-list': (context) => const ChallengeListScreen(),
         '/admin-challenge-management': (context) => const AdminChallengeManagementScreen(),
+        '/admin-challenge-stats': (context) => const AdminChallengeStatsScreen(),
         '/add-challenge': (context) => const AddEditChallengeScreen(),
       },
       onGenerateRoute: (settings) {

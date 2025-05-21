@@ -3,6 +3,7 @@ import 'package:axora/services/meditation_service.dart';
 import 'package:provider/provider.dart';
 import 'package:axora/providers/theme_provider.dart';
 import 'package:axora/screens/admin_challenge_management_screen.dart';
+import 'package:axora/screens/admin_challenge_stats_screen.dart';
 import 'package:axora/utils/constants.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -157,11 +158,43 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         _buildFeatureCard(
           icon: Icons.analytics,
           title: 'Analytics',
-          subtitle: 'View app usage statistics',
+          subtitle: 'View app usage and challenge completion statistics',
           onTap: () {
-            // This feature will be implemented later
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Feature coming soon')),
+            showModalBottomSheet(
+              context: context,
+              builder: (context) => Container(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.bar_chart),
+                      title: const Text('Challenge Statistics'),
+                      subtitle: const Text('View challenge completion data'),
+                      onTap: () {
+                        Navigator.pop(context); // Close bottom sheet
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const AdminChallengeStatsScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.trending_up),
+                      title: const Text('Usage Analytics'),
+                      subtitle: const Text('View app usage statistics'),
+                      onTap: () {
+                        Navigator.pop(context); // Close bottom sheet
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Usage analytics coming soon')),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
             );
           },
           color: cardColor,
