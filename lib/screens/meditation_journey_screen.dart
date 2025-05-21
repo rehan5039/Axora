@@ -13,6 +13,7 @@ import 'package:axora/services/notification_service.dart';
 import 'package:axora/widgets/meditation_day_map.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:axora/screens/flow_intro_screen.dart';
+import 'package:shimmer/shimmer.dart';
 
 class MeditationJourneyScreen extends StatefulWidget {
   const MeditationJourneyScreen({super.key});
@@ -736,7 +737,113 @@ class _MeditationJourneyScreenState extends State<MeditationJourneyScreen> with 
         appBar: AppBar(
           title: const Text('Meditation Journey'),
         ),
-        body: const Center(child: CircularProgressIndicator()),
+        body: SingleChildScrollView(
+          physics: const NeverScrollableScrollPhysics(),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Shimmer effect for title and description
+                Shimmer.fromColors(
+                  baseColor: isDarkMode ? Colors.grey[800]! : Colors.grey[300]!,
+                  highlightColor: isDarkMode ? Colors.grey[700]! : Colors.grey[100]!,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 200,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        width: double.infinity,
+                        height: 16,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        width: MediaQuery.of(context).size.width * 0.7,
+                        height: 16,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 32),
+                
+                // Shimmer effect for progress indicators
+                Shimmer.fromColors(
+                  baseColor: isDarkMode ? Colors.grey[800]! : Colors.grey[300]!,
+                  highlightColor: isDarkMode ? Colors.grey[700]! : Colors.grey[100]!,
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 120,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                      ),
+                      const Spacer(),
+                      Container(
+                        width: 100,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 32),
+                
+                // Shimmer effect for meditation cards
+                ...List.generate(3, (index) => Padding(
+                  padding: const EdgeInsets.only(bottom: 16.0),
+                  child: Shimmer.fromColors(
+                    baseColor: isDarkMode ? Colors.grey[800]! : Colors.grey[300]!,
+                    highlightColor: isDarkMode ? Colors.grey[700]! : Colors.grey[100]!,
+                    child: Container(
+                      width: double.infinity,
+                      height: 120,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                  ),
+                )),
+                
+                // Shimmer effect for progress bar
+                Shimmer.fromColors(
+                  baseColor: isDarkMode ? Colors.grey[800]! : Colors.grey[300]!,
+                  highlightColor: isDarkMode ? Colors.grey[700]! : Colors.grey[100]!,
+                  child: Container(
+                    width: double.infinity,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(5),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       );
     }
 
