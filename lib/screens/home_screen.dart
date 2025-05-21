@@ -24,6 +24,7 @@ import 'package:axora/services/challenge_service.dart';
 import 'package:axora/screens/challenge_detail_screen.dart';
 import 'package:axora/widgets/scroll_to_hide_fab.dart';
 import 'package:axora/services/share_service.dart';
+import 'package:axora/screens/challenge_list_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -393,8 +394,22 @@ class _MeditationTabState extends State<MeditationTab> {
                       if (_challengeService.getActiveChallenges != null)
                         TextButton(
                           onPressed: () {
-                            Navigator.of(context).pushNamed('/challenge-list')
-                              .then((_) => _loadChallenges());
+                            // Show loading animation while transitioning
+                            Navigator.of(context).push(
+                              PageRouteBuilder(
+                                pageBuilder: (context, animation, secondaryAnimation) => 
+                                  const ChallengeListScreen(),
+                                transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                                  const begin = Offset(1.0, 0.0);
+                                  const end = Offset.zero;
+                                  const curve = Curves.easeInOutQuart;
+                                  var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+                                  var offsetAnimation = animation.drive(tween);
+                                  return SlideTransition(position: offsetAnimation, child: child);
+                                },
+                                transitionDuration: const Duration(milliseconds: 500),
+                              ),
+                            ).then((_) => _loadChallenges());
                           },
                           child: Text(
                             'See All',
