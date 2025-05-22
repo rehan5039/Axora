@@ -3,9 +3,63 @@ import 'package:axora/providers/theme_provider.dart';
 import 'package:axora/theme/app_colors.dart';
 import 'package:provider/provider.dart';
 
-class AuthorInformationScreen extends StatelessWidget {
+class AuthorInformationScreen extends StatefulWidget {
   const AuthorInformationScreen({Key? key}) : super(key: key);
 
+  @override
+  State<AuthorInformationScreen> createState() => _AuthorInformationScreenState();
+}
+
+class _AuthorInformationScreenState extends State<AuthorInformationScreen> {
+  bool _showHiddenCredit = false;
+  int _tapCount = 0;
+  bool _secretSequenceActivated = false;
+  DateTime? _lastTapTime;
+  
+  // Reset the secret tap sequence after a period of inactivity
+  void _resetTapSequence() {
+    if (_tapCount > 0) {
+      Future.delayed(const Duration(seconds: 3), () {
+        if (mounted) {
+          setState(() {
+            _tapCount = 0;
+            _secretSequenceActivated = false;
+          });
+        }
+      });
+    }
+  }
+  
+  // Check for the special tap sequence (3 taps within 2 seconds)
+  void _handleTap() {
+    final now = DateTime.now();
+    
+    // If it's been more than 2 seconds since the last tap, reset the counter
+    if (_lastTapTime != null && now.difference(_lastTapTime!).inSeconds > 2) {
+      _tapCount = 0;
+    }
+    
+    setState(() {
+      _tapCount++;
+      _lastTapTime = now;
+      
+      // Secret sequence: 3 taps
+      if (_tapCount == 3) {
+        _secretSequenceActivated = true;
+        // Show a subtle indicator that the long press will now work
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(''),
+            duration: const Duration(milliseconds: 300),
+            backgroundColor: Colors.transparent,
+          ),
+        );
+      } else {
+        _resetTapSequence();
+      }
+    });
+  }
+  
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
@@ -28,28 +82,119 @@ class AuthorInformationScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Center(
-              child: Container(
-                width: 120,
-                height: 120,
-                margin: const EdgeInsets.only(bottom: 24),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: cardColor,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.person,
-                  size: 64,
-                  color: AppColors.primaryBlue,
+              child: GestureDetector(
+                onTap: _handleTap,
+                onLongPress: () {
+                  // Only show hidden credit if secret sequence has been activated
+                  if (_secretSequenceActivated) {
+                    // Show hidden credit after long press
+                    setState(() {
+                      _showHiddenCredit = true;
+                    });
+                  }
+                },
+                onLongPressStart: (_) {
+                  // Only start the timer if secret sequence has been activated
+                  if (_secretSequenceActivated) {
+                    // Start a timer that will show the hidden credit after 10 seconds
+                    Future.delayed(const Duration(seconds: 10), () {
+                      if (mounted && _secretSequenceActivated) {
+                        setState(() {
+                          _showHiddenCredit = true;
+                        });
+                      }
+                    });
+                  }
+                },
+                child: Container(
+                  width: 120,
+                  height: 120,
+                  margin: const EdgeInsets.only(bottom: 24),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: cardColor,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.person,
+                    size: 64,
+                    color: AppColors.primaryBlue,
+                  ),
                 ),
               ),
             ),
+            
+            // Hidden credit that appears after 10-second hold 
+
+            /*
+Hi, I'm Rehan.
+Just a simple student with a big dream — to bring a little peace into this noisy world.
+
+I’m not a professional developer. I didn’t have a team.
+Just an idea… and the courage to start.
+
+This app is my small gift to anyone searching for calm, for clarity, or maybe just a moment to breathe.
+
+If you’ve discovered this hidden message,
+maybe it's a sign —
+that you, too, have something special inside you, waiting to be shared with the world.
+
+Thank you for being here.
+Stay kind. Stay curious. Stay calm. ✨
+*/
+
+
+            if (_showHiddenCredit)
+              Center(
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  margin: const EdgeInsets.only(bottom: 24),
+                  decoration: BoxDecoration(
+                    color: isDarkMode ? AppColors.primaryBlue.withOpacity(0.1) : AppColors.primaryGold.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isDarkMode ? AppColors.primaryBlue : AppColors.primaryGold,
+                      width: 1,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Text(
+                        "💡 About the Creator",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: textColor,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        "Created with heart by Rehan.\n"
+                        "A young mind with a calm vision.\n"
+                        "Not a developer, just a dreamer learning every day.\n\n"
+                        "This app was made to help others find peace — just like I needed.\n"
+                        "If you're reading this, maybe you're meant to build something too.\n\n"
+                        "Very few people know this and you are one of them.\n\n"
+                        "Thank you for unlocking this secret. 🙂",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: textColor.withOpacity(0.9),
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             
             Center(
               child: Text(
