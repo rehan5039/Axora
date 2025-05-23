@@ -849,33 +849,77 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
     final article = ArticleContent.fromMap(widget.content.article);
     final audio = AudioContent.fromMap(widget.content.audio);
     
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Day ${widget.content.day}: ${widget.content.title}'),
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorWeight: 3,
-          indicatorColor: isDarkMode ? Colors.deepPurple : Colors.blue,
-          labelColor: isDarkMode ? Colors.white : Colors.black87,
-          unselectedLabelColor: isDarkMode ? Colors.white60 : Colors.black54,
-          labelStyle: const TextStyle(fontWeight: FontWeight.bold),
-          tabs: const [
-            Tab(text: 'Audio Meditation', icon: Icon(Icons.headphones)),
-            Tab(text: 'Article', icon: Icon(Icons.article)),
-          ],
-        ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          // Audio Tab
-          _buildAudioTab(audio, isDarkMode),
-          
-          // Article Tab
-          _buildArticleTab(article, isDarkMode),
-        ],
-      ),
-      bottomNavigationBar: _buildBottomBar(isDarkMode),
+    // Check if this is day 1 to possibly disable back button
+    final isDay1 = widget.content.day == 1;
+    
+    // Use FutureBuilder to check if flow intro has been shown
+    return FutureBuilder<bool>(
+      future: isDay1 ? _hasShownFlowIntro() : Future.value(true),
+      builder: (context, snapshot) {
+        final canPop = !isDay1 || (snapshot.hasData && snapshot.data == true);
+        
+        return WillPopScope(
+          onWillPop: () async {
+            // Only allow pop if not day 1 or if flow intro has been shown
+            if (canPop) {
+              return true;
+            } else {
+              // Optional: show a message explaining why back is disabled
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Please complete Day 1 to see the Flow intro.'),
+                  duration: Duration(seconds: 2),
+                )
+              );
+              return false;
+            }
+          },
+          child: Scaffold(
+            appBar: AppBar(
+              title: Text('Day ${widget.content.day}: ${widget.content.title}'),
+              // Don't modify automaticallyImplyLeading or leading directly
+              // Instead handle the back button press through the IconButton
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: canPop 
+                  ? () => Navigator.of(context).pop() 
+                  : () {
+                      // Show message when trying to go back on day 1
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Please complete Day 1 to see the Flow intro.'),
+                          duration: Duration(seconds: 2),
+                        )
+                      );
+                    },
+              ),
+              bottom: TabBar(
+                controller: _tabController,
+                indicatorWeight: 3,
+                indicatorColor: isDarkMode ? Colors.deepPurple : Colors.blue,
+                labelColor: isDarkMode ? Colors.white : Colors.black87,
+                unselectedLabelColor: isDarkMode ? Colors.white60 : Colors.black54,
+                labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+                tabs: const [
+                  Tab(text: 'Audio Meditation', icon: Icon(Icons.headphones)),
+                  Tab(text: 'Article', icon: Icon(Icons.article)),
+                ],
+              ),
+            ),
+            body: TabBarView(
+              controller: _tabController,
+              children: [
+                // Audio Tab
+                _buildAudioTab(audio, isDarkMode),
+                
+                // Article Tab
+                _buildArticleTab(article, isDarkMode),
+              ],
+            ),
+            bottomNavigationBar: _buildBottomBar(isDarkMode),
+          ),
+        );
+      }
     );
   }
   
