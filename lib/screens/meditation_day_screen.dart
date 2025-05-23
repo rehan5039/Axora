@@ -887,7 +887,7 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
                       // Show message when trying to go back on day 1
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Please complete Day 1 to see the Flow intro.'),
+                          content: Text('Please complete Day 1 first.'),
                           duration: Duration(seconds: 2),
                         )
                       );
