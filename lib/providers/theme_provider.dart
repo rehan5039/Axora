@@ -149,7 +149,7 @@ class ThemeProvider extends ChangeNotifier {
         fontWeight: FontWeight.bold,
       ),
     ),
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData(
       color: AppColors.lightCardBackground,
       elevation: 2,
       shape: RoundedRectangleBorder(
@@ -230,7 +230,7 @@ class ThemeProvider extends ChangeNotifier {
         fontWeight: FontWeight.bold,
       ),
     ),
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData(
       color: AppColors.darkCardBackground,
       elevation: 2,
       shape: RoundedRectangleBorder(
