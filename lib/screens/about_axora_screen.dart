@@ -41,7 +41,7 @@ class AboutAxoraScreen extends StatelessWidget {
           const SizedBox(height: 8),
           Center(
             child: Text(
-              'Version 1.0.0',
+              'Version 2.0.0',
               style: TextStyle(
                 fontSize: 16,
                 color: isDarkMode ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,

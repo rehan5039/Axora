@@ -473,13 +473,6 @@ class _MeditationTabState extends State<MeditationTab> {
                     },
                   ),
                   const SizedBox(height: 24),
-                  _SectionTitle(title: 'Categories'),
-                  const SizedBox(height: 16),
-                  const _CategoryGrid(),
-                  const SizedBox(height: 24),
-                  _SectionTitle(title: 'Top Sounds'),
-                  const SizedBox(height: 16),
-                  const _SoundSelector(),
                 ],
               ),
             ),
@@ -967,188 +960,6 @@ class _DurationBadge extends StatelessWidget {
   }
 }
 
-class _CategoryGrid extends StatelessWidget {
-  const _CategoryGrid();
-
-  @override
-  Widget build(BuildContext context) {
-    final categories = [
-      {'name': 'Focus', 'icon': Icons.center_focus_strong},
-      {'name': 'Sleep', 'icon': Icons.nightlight_round},
-      {'name': 'Productivity', 'icon': Icons.trending_up},
-      {'name': 'Deep Relaxation', 'icon': Icons.spa},
-    ];
-    
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 1.5,
-      ),
-      itemCount: categories.length,
-      itemBuilder: (context, index) {
-        return _CategoryItem(
-          name: categories[index]['name'] as String,
-          icon: categories[index]['icon'] as IconData,
-        );
-      },
-    );
-  }
-}
-
-class _CategoryItem extends StatelessWidget {
-  final String name;
-  final IconData icon;
-
-  const _CategoryItem({
-    required this.name,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
-    final isDarkMode = themeProvider.isDarkMode;
-    final backgroundColor = isDarkMode ? AppColors.darkCardBackground : AppColors.lightCardBackground;
-    final textColor = isDarkMode ? AppColors.darkText : AppColors.lightText;
-    
-    return InkWell(
-      onTap: () {},
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              color: AppColors.primaryBlue,
-              size: 28,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              name,
-              style: TextStyle(
-                color: textColor,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SoundSelector extends StatelessWidget {
-  const _SoundSelector();
-
-  @override
-  Widget build(BuildContext context) {
-    final sounds = [
-      {'name': 'Nature', 'icon': Icons.eco},
-      {'name': 'Rain', 'icon': Icons.water_drop},
-      {'name': 'Waves', 'icon': Icons.waves},
-    ];
-    
-    return SizedBox(
-      height: 80,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        itemCount: sounds.length,
-        itemBuilder: (context, index) {
-          return Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: _SoundItem(
-              name: sounds[index]['name'] as String,
-              icon: sounds[index]['icon'] as IconData,
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _SoundItem extends StatelessWidget {
-  final String name;
-  final IconData icon;
-
-  const _SoundItem({
-    required this.name,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
-    final isDarkMode = themeProvider.isDarkMode;
-    final backgroundColor = isDarkMode ? AppColors.darkCardBackground : AppColors.lightCardBackground;
-    final textColor = isDarkMode ? AppColors.darkText : AppColors.lightText;
-    
-    return InkWell(
-      onTap: () {},
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        width: 80,
-        height: 80,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                color: AppColors.primaryBlue,
-                size: 20,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                name,
-                style: TextStyle(
-                  color: textColor,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500,
-                ),
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _ChallengeSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -1336,8 +1147,8 @@ class _StatisticsTabState extends State<StatisticsTab> {
               ),
               const SizedBox(height: 16),
               _StatItem(
-                label: 'Total Flow Lost', 
-                value: '${_userStats?.totalFlowLost ?? 0}',
+                label: 'Highest Flow', 
+                value: '${(_userStats?.currentStreak ?? 0) + (_userStats?.totalFlowLost ?? 0)}',
               ),
               const SizedBox(height: 24),
               Text('Badges', style: headingStyle),
