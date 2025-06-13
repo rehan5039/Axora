@@ -16,6 +16,32 @@ service cloud.firestore {
       allow write, delete: if request.auth != null && (request.auth.uid == userId || isAdmin());
     }
 
+    // Meditation quotes collection rules
+    match /meditation_quotes/{quoteId} {
+      // Anyone authenticated can read quotes
+      allow read: if request.auth != null;
+      // Only admins can create, update or delete quotes
+      allow write, delete: if request.auth != null && isAdmin();
+    }
+    
+    // Quote categories collection rules
+    match /quote_categories/{categoryId} {
+      // Anyone authenticated can read categories
+      allow read: if request.auth != null;
+      // Only admins can create, update or delete categories
+      allow write, delete: if request.auth != null && isAdmin();
+    }
+
+    // User feedback collection rules
+    match /feedback/{feedbackId} {
+      // Users can create their own feedback
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      // Only the user who submitted the feedback or admins can read specific feedback
+      allow read: if request.auth != null && (resource.data.userId == request.auth.uid || isAdmin());
+      // Only admins can read all feedback or delete feedback
+      allow list, delete: if request.auth != null && isAdmin();
+    }
+    
     // Challenge collection rules
     match /challenges/{challengeId} {
       // Anyone authenticated can read challenges

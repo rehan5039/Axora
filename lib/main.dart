@@ -37,6 +37,10 @@ import 'package:axora/screens/admin_challenge_stats_screen.dart';
 import 'package:axora/screens/add_edit_challenge_screen.dart';
 import 'package:axora/models/challenge.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:axora/screens/quotes_screen.dart';
+import 'package:axora/screens/admin_quotes_screen.dart';
+import 'package:axora/screens/feedback_screen.dart';
+import 'package:axora/screens/admin_feedback_screen.dart';
 
 // Handle background messages (when app is closed or in background)
 @pragma('vm:entry-point')
@@ -257,6 +261,10 @@ class _MyAppState extends State<MyApp> {
         '/admin-challenge-management': (context) => const AdminChallengeManagementScreen(),
         '/admin-challenge-stats': (context) => const AdminChallengeStatsScreen(),
         '/add-challenge': (context) => const AddEditChallengeScreen(),
+        '/quotes': (context) => const QuotesScreen(),
+        '/admin-quotes': (context) => const AdminQuotesScreen(),
+        '/feedback': (context) => const FeedbackScreen(),
+        '/admin-feedback': (context) => const AdminFeedbackScreen(),
       },
       onGenerateRoute: (settings) {
         if (settings.name == '/challenge-detail') {

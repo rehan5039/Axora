@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:axora/providers/theme_provider.dart';
 import 'package:axora/utils/constants.dart';
 import 'package:axora/screens/meditation_reminder_screen.dart';
+import 'package:axora/screens/feedback_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -27,6 +28,17 @@ class SettingsScreen extends StatelessWidget {
               Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (context) => const MeditationReminderScreen(),
+                ),
+              );
+            },
+          ),
+          _SettingsMenuItem(
+            icon: Icons.star_rate,
+            title: 'Send Feedback',
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const FeedbackScreen(),
                 ),
               );
             },

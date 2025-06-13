@@ -25,6 +25,7 @@ import 'package:axora/screens/challenge_detail_screen.dart';
 import 'package:axora/widgets/scroll_to_hide_fab.dart';
 import 'package:axora/services/share_service.dart';
 import 'package:axora/screens/challenge_list_screen.dart';
+import 'package:axora/screens/quotes_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -460,6 +461,30 @@ class _MeditationTabState extends State<MeditationTab> {
                         PageRouteBuilder(
                           pageBuilder: (context, animation, secondaryAnimation) => 
                             const CustomMeditationListScreen(),
+                          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                            const begin = Offset(1.0, 0.0);
+                            const end = Offset.zero;
+                            const curve = Curves.easeInOut;
+                            var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+                            var offsetAnimation = animation.drive(tween);
+                            return SlideTransition(position: offsetAnimation, child: child);
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 24),
+                  
+                  // Add Quotes section
+                  _SectionTitle(title: 'Meditation Quotes'),
+                  const SizedBox(height: 16),
+                  _QuotesCard(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        PageRouteBuilder(
+                          pageBuilder: (context, animation, secondaryAnimation) => 
+                            const QuotesScreen(),
                           transitionsBuilder: (context, animation, secondaryAnimation, child) {
                             const begin = Offset(1.0, 0.0);
                             const end = Offset.zero;
@@ -1022,6 +1047,91 @@ class _ChallengeSkeleton extends StatelessWidget {
   }
 }
 
+class _QuotesCard extends StatelessWidget {
+  final VoidCallback onPressed;
+
+  const _QuotesCard({required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDarkMode = themeProvider.isDarkMode;
+    final backgroundColor = isDarkMode ? AppColors.darkCardBackground : AppColors.lightCardBackground;
+    final textColor = isDarkMode ? AppColors.darkText : AppColors.lightText;
+    
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: const BoxDecoration(
+                    color: AppColors.primaryGold,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.format_quote,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Meditation Quotes',
+                        style: TextStyle(
+                          color: textColor,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Inspiring quotes to help you stay motivated',
+                        style: TextStyle(
+                          color: textColor.withOpacity(0.7),
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios,
+                  color: textColor.withOpacity(0.6),
+                  size: 16,
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class StatisticsTab extends StatefulWidget {
   const StatisticsTab({super.key});
 
@@ -1387,6 +1497,13 @@ class _ProfileTabState extends State<ProfileTab> {
                     builder: (context) => const ThemeShowcase(),
                   ),
                 );
+              },
+            ),
+            _ProfileMenuItem(
+              icon: Icons.format_quote,
+              title: 'Meditation Quotes',
+              onTap: () {
+                Navigator.of(context).pushNamed('/quotes');
               },
             ),
             if (_isAdmin) // Only show admin options to admins

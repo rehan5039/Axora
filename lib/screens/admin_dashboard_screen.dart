@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import 'package:axora/providers/theme_provider.dart';
 import 'package:axora/screens/admin_challenge_management_screen.dart';
 import 'package:axora/screens/admin_challenge_stats_screen.dart';
+import 'package:axora/screens/admin_quotes_screen.dart';
+import 'package:axora/screens/admin_feedback_screen.dart';
 import 'package:axora/utils/constants.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -147,6 +149,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           iconColor: isDarkMode ? Colors.orangeAccent : Colors.orange,
         ),
         _buildFeatureCard(
+          icon: Icons.format_quote,
+          title: 'Meditation Quotes',
+          subtitle: 'Manage motivational quotes with categories',
+          onTap: () => Navigator.of(context).pushNamed('/admin-quotes'),
+          color: cardColor,
+          textColor: textColor,
+          iconColor: isDarkMode ? Colors.lightBlueAccent : Colors.lightBlue,
+        ),
+        _buildFeatureCard(
           icon: Icons.people,
           title: 'User Management',
           subtitle: 'View and manage user accounts',
@@ -216,6 +227,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           color: cardColor,
           textColor: textColor,
           iconColor: isDarkMode ? Colors.redAccent : Colors.red,
+        ),
+        _buildFeatureCard(
+          icon: Icons.feedback,
+          title: 'User Feedback',
+          subtitle: 'View app ratings and user feedback',
+          onTap: () => Navigator.of(context).pushNamed('/admin-feedback'),
+          color: cardColor,
+          textColor: textColor,
+          iconColor: isDarkMode ? Colors.pinkAccent : Colors.pink,
         ),
         _buildFeatureCard(
           icon: Icons.storage,

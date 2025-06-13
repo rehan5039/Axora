@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'about_axora_screen.dart';
 import 'contact_support_screen.dart';
 import 'community_support_screen.dart';
+import 'feedback_screen.dart';
 
 class HelpSupportScreen extends StatelessWidget {
   const HelpSupportScreen({Key? key}) : super(key: key);
@@ -74,7 +75,12 @@ class HelpSupportScreen extends StatelessWidget {
             title: 'Send Feedback',
             subtitle: 'Help us improve the Axora experience',
             onTap: () {
-              // Handle send feedback action
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const FeedbackScreen(),
+                ),
+              );
             },
           ),
           _SupportMenuItem(
