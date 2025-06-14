@@ -15,9 +15,12 @@ class _QuotesScreenState extends State<QuotesScreen> {
   final QuoteService _quoteService = QuoteService();
   List<QuoteCategory> _categories = [];
   List<Quote> _quotes = [];
+  List<Quote> _swipeableQuotes = [];
+  int _currentQuoteIndex = 0;
   String? _selectedCategoryId;
   bool _isLoading = true;
   Quote? _quoteOfTheDay;
+  final PageController _pageController = PageController();
   
   @override
   void initState() {
@@ -31,13 +34,22 @@ class _QuotesScreenState extends State<QuotesScreen> {
     );
   }
   
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+  
   Future<void> _loadData() async {
     setState(() {
       _isLoading = true;
     });
     
     try {
-      // Get quote of the day
+      // Get quotes for swiping
+      final swipeableQuotes = await _quoteService.getQuotesForSwiping();
+      
+      // Get quote of the day (for backward compatibility)
       final quoteOfTheDay = await _quoteService.getQuoteOfTheDay();
       
       // Get categories
@@ -49,6 +61,7 @@ class _QuotesScreenState extends State<QuotesScreen> {
       // Update state
       if (mounted) {
         setState(() {
+          _swipeableQuotes = swipeableQuotes;
           _quoteOfTheDay = quoteOfTheDay;
           _categories = categories;
           _quotes = quotes;
@@ -117,8 +130,8 @@ class _QuotesScreenState extends State<QuotesScreen> {
             child: Column(
               children: [
                 // Quote of the day section
-                if (_quoteOfTheDay != null)
-                  _buildQuoteOfTheDay(theme),
+                if (_swipeableQuotes.isNotEmpty)
+                  _buildSwipeableQuotes(theme),
                   
                 // Categories horizontal list
                 _buildCategoriesList(),
@@ -144,6 +157,118 @@ class _QuotesScreenState extends State<QuotesScreen> {
               ],
             ),
           ),
+    );
+  }
+  
+  Widget _buildSwipeableQuotes(ThemeData theme) {
+    return Container(
+      height: 140,
+      margin: const EdgeInsets.all(16),
+      child: PageView.builder(
+        controller: _pageController,
+        itemCount: _swipeableQuotes.length,
+        onPageChanged: (index) {
+          setState(() {
+            _currentQuoteIndex = index;
+          });
+        },
+        itemBuilder: (context, index) {
+          final quote = _swipeableQuotes[index];
+          return _buildQuoteOfDayCard(quote, theme);
+        },
+      ),
+    );
+  }
+  
+  Widget _buildQuoteOfDayCard(Quote quote, ThemeData theme) {
+    return GestureDetector(
+      onHorizontalDragEnd: (details) {
+        if (details.primaryVelocity! > 0) {
+          // Swipe right - go to previous quote
+          if (_currentQuoteIndex > 0) {
+            _pageController.previousPage(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+            );
+          }
+        } else if (details.primaryVelocity! < 0) {
+          // Swipe left - go to next quote
+          if (_currentQuoteIndex < _swipeableQuotes.length - 1) {
+            _pageController.nextPage(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeInOut,
+            );
+          }
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              theme.colorScheme.primary,
+              theme.colorScheme.secondary,
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.star_rounded,
+                  color: theme.colorScheme.onPrimary,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Quote of the Day',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: theme.colorScheme.onPrimary,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
+              ],
+            ),
+            const Spacer(),
+            Text(
+              '"${quote.text}"',
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: theme.colorScheme.onPrimary,
+                fontStyle: FontStyle.italic,
+                fontSize: 16,
+              ),
+              textAlign: TextAlign.start,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const Spacer(),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                '- ${quote.author}',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onPrimary,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
   

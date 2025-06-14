@@ -124,4 +124,24 @@ class QuoteService {
       return null;
     }
   }
+  
+  // Get multiple quotes for swipeable quote of the day
+  Future<List<Quote>> getQuotesForSwiping({int limit = 10}) async {
+    try {
+      final snapshot = await _firestore
+          .collection('meditation_quotes')
+          .limit(limit)
+          .get();
+      
+      if (snapshot.docs.isEmpty) return [];
+      
+      // Shuffle the quotes to get random ones
+      final docs = snapshot.docs.toList()..shuffle();
+      
+      return docs.map((doc) => Quote.fromJson(doc.data(), doc.id)).toList();
+    } catch (e) {
+      print('Error getting quotes for swiping: $e');
+      return [];
+    }
+  }
 } 

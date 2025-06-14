@@ -1499,13 +1499,6 @@ class _ProfileTabState extends State<ProfileTab> {
                 );
               },
             ),
-            _ProfileMenuItem(
-              icon: Icons.format_quote,
-              title: 'Meditation Quotes',
-              onTap: () {
-                Navigator.of(context).pushNamed('/quotes');
-              },
-            ),
             if (_isAdmin) // Only show admin options to admins
               _ProfileMenuItem(
                 icon: Icons.admin_panel_settings,

@@ -33,11 +33,11 @@ dependencies:
 
   # Firebase
   firebase_core: ^2.27.1
-  firebase_auth: ^4.17.9
+  firebase_auth: ^4.20.0
   cloud_firestore: ^4.15.9
   firebase_database: ^10.4.9
   firebase_messaging: ^14.7.20
-  google_sign_in: ^6.2.1
+  google_sign_in: ^6.3.0
   firebase_analytics: ^10.8.0
   firebase_storage: ^11.2.6
 
