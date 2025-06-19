@@ -452,30 +452,6 @@ class _MeditationTabState extends State<MeditationTab> {
                               ],
                             ),
                   const SizedBox(height: 24),
-                  _SectionTitle(title: 'Custom Meditation'),
-                  const SizedBox(height: 16),
-                  _CustomMeditationCard(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        PageRouteBuilder(
-                          pageBuilder: (context, animation, secondaryAnimation) => 
-                            const CustomMeditationListScreen(),
-                          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                            const begin = Offset(1.0, 0.0);
-                            const end = Offset.zero;
-                            const curve = Curves.easeInOut;
-                            var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-                            var offsetAnimation = animation.drive(tween);
-                            return SlideTransition(position: offsetAnimation, child: child);
-                          },
-                        ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 24),
-                  
-                  // Add Quotes section
                   _SectionTitle(title: 'Meditation Quotes'),
                   const SizedBox(height: 16),
                   _QuotesCard(
@@ -498,6 +474,27 @@ class _MeditationTabState extends State<MeditationTab> {
                     },
                   ),
                   const SizedBox(height: 24),
+                  _SectionTitle(title: 'Custom Meditation'),
+                  const SizedBox(height: 16),
+                  _CustomMeditationCard(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        PageRouteBuilder(
+                          pageBuilder: (context, animation, secondaryAnimation) => 
+                            const CustomMeditationListScreen(),
+                          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                            const begin = Offset(1.0, 0.0);
+                            const end = Offset.zero;
+                            const curve = Curves.easeInOut;
+                            var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+                            var offsetAnimation = animation.drive(tween);
+                            return SlideTransition(position: offsetAnimation, child: child);
+                          },
+                        ),
+                      );
+                    },
+                  ),
                 ],
               ),
             ),

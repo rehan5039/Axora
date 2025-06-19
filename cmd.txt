@@ -21,6 +21,8 @@ flutter pub run flutter_launcher_icons
 
 flutter pub run flutter_native_splash:create
 
+dart run flutter_native_splash:create
+
 flutter run
 
 flutter run -d chrome
@@ -34,4 +36,5 @@ $ firebase deploy
 
 
 The version in pubspec.yaml
-The versionCode and versionName in android/app/build.gradle.kts
+The versionCode and versionName in android/app/build.gradle.kts 
+Axora\android\local.properties

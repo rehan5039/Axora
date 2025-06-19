@@ -117,7 +117,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
             
             const SizedBox(height: 16),
             Text(
-              '@Web @https://privacyandpaolicy.blogspot.com/2025/05/axora.html',
+              '@Web @https://sites.google.com/view/axora-privacy-policy',
               style: TextStyle(
                 fontSize: 12,
                 fontStyle: FontStyle.italic,

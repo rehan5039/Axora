@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 2.0.1+105
+version: 2.0.2+109
 
 environment:
   sdk: ^3.7.2
@@ -82,12 +82,12 @@ dependencies:
 
   # New dependencies
   shimmer: ^3.0.0
+  flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.3.11
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_launcher_icons: ^0.13.1
-  flutter_native_splash: ^2.3.11
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
@@ -111,6 +111,7 @@ flutter:
   assets:
     - assets/images/
     - app_icon.png
+    - splash_icon.png
     - assets/audio/
   # assets:
   #   - images/a_dot_burr.jpeg
@@ -160,10 +161,10 @@ flutter_launcher_icons:
 # Flutter Native Splash Screen configuration
 flutter_native_splash:
   color: "#fff8eb"
-  image: "app_icon.png"
+  image: "splash_icon.png"
   branding: null
   color_dark: "#fff8eb"
-  image_dark: "app_icon.png"
+  image_dark: "splash_icon.png"
   branding_dark: null
   android: true
   ios: true
@@ -173,6 +174,6 @@ flutter_native_splash:
   ios_content_mode: center
   web_image_mode: center
   android_12:
-    image: "app_icon.png"
+    image: "splash_icon.png"
     icon_background_color: "#fff8eb"
     icon_background_color_dark: "#fff8eb"
