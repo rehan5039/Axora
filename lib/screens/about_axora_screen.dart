@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'privacy_policy_screen.dart';
 import 'terms_service_screen.dart';
 import 'author_information_screen.dart';
+import 'app_information_screen.dart';
 
 class AboutAxoraScreen extends StatelessWidget {
   const AboutAxoraScreen({Key? key}) : super(key: key);
@@ -41,7 +42,7 @@ class AboutAxoraScreen extends StatelessWidget {
           const SizedBox(height: 8),
           Center(
             child: Text(
-              'Version 2.0.0',
+              'Version 2.0.3',
               style: TextStyle(
                 fontSize: 16,
                 color: isDarkMode ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
@@ -90,7 +91,12 @@ class AboutAxoraScreen extends StatelessWidget {
             icon: Icons.info_outline,
             title: 'App Information',
             onTap: () {
-              // Navigate to App Information screen when implemented
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AppInformationScreen(),
+                ),
+              );
             },
           ),
         ],

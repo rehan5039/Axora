@@ -38,3 +38,17 @@ $ firebase deploy
 The version in pubspec.yaml
 The versionCode and versionName in android/app/build.gradle.kts 
 Axora\android\local.properties
+
+
+git config --global user.name "Your Name"
+git config --global user.email "you@example.com"
+
+
+git config --global user.name
+git config --global user.email
+
+git config --list
+
+
+firebase logout
+firebase login

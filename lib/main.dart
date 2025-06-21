@@ -42,6 +42,7 @@ import 'package:axora/screens/admin_quotes_screen.dart';
 import 'package:axora/screens/feedback_screen.dart';
 import 'package:axora/screens/admin_feedback_screen.dart';
 import 'package:axora/screens/faq_screen.dart';
+import 'package:axora/screens/app_information_screen.dart';
 
 // Handle background messages (when app is closed or in background)
 @pragma('vm:entry-point')
@@ -267,6 +268,7 @@ class _MyAppState extends State<MyApp> {
         '/feedback': (context) => const FeedbackScreen(),
         '/admin-feedback': (context) => const AdminFeedbackScreen(),
         '/faq': (context) => const FAQScreen(),
+        '/app-information': (context) => const AppInformationScreen(),
       },
       onGenerateRoute: (settings) {
         if (settings.name == '/challenge-detail') {

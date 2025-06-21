@@ -1271,12 +1271,14 @@ class _AdminMeditationScreenState extends State<AdminMeditationScreen> {
           : SingleChildScrollView(
               child: Column(
                 children: [
+                  _buildAddContentForm(),
+                  const Divider(height: 1),
                   if (_meditationContents.isEmpty)
                     Padding(
                       padding: const EdgeInsets.all(16),
                       child: Center(
                         child: Text(
-                          'No meditation content available.\nAdd a new one below.',
+                          'No meditation content available.',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: isDarkMode ? Colors.white70 : Colors.black54,
@@ -1291,12 +1293,12 @@ class _AdminMeditationScreenState extends State<AdminMeditationScreen> {
                       padding: const EdgeInsets.all(16),
                       itemCount: _meditationContents.length,
                       itemBuilder: (context, index) {
-                        final content = _meditationContents[index];
+                        // Get reversed index to display days in reverse order
+                        final reversedIndex = _meditationContents.length - 1 - index;
+                        final content = _meditationContents[reversedIndex];
                         return _buildContentCard(content);
                       },
                     ),
-                  const Divider(height: 1),
-                  _buildAddContentForm(),
                 ],
               ),
             ),
