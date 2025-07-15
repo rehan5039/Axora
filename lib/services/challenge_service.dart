@@ -314,6 +314,51 @@ class ChallengeService {
     }
   }
   
+  // Update an existing challenge
+  Future<void> updateChallenge(String challengeId, Challenge challenge) async {
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (userId == null) {
+      throw Exception('User not authenticated');
+    }
+    
+    try {
+      // Create a clean data map for storage
+      final Map<String, dynamic> challengeData = {
+        'title': challenge.title,
+        'description': challenge.description,
+        'type': challenge.type.name,
+        'startDate': challenge.startDate.toIso8601String(),
+        'endDate': challenge.endDate.toIso8601String(),
+        'durationMinutes': challenge.durationMinutes,
+        'isCompleted': challenge.isCompleted,
+        'createdBy': challenge.createdBy.isNotEmpty ? challenge.createdBy : userId,
+        'isMultiSelect': challenge.isMultiSelect,
+        'buttonText': challenge.buttonText,
+        'lastModified': DateTime.now().toIso8601String(),
+        'lastModifiedBy': userId,
+      };
+      
+      // Only add pollOptions if they exist
+      if (challenge.pollOptions != null && challenge.pollOptions!.isNotEmpty) {
+        challengeData['pollOptions'] = challenge.pollOptions;
+      }
+      
+      // Only add quizQuestions if they exist
+      if (challenge.quizQuestions != null && challenge.quizQuestions!.isNotEmpty) {
+        challengeData['quizQuestions'] = challenge.quizQuestions;
+      }
+      
+      await _database.child(_challengesPath).child(challengeId).update(challengeData);
+      
+      // For debugging, print successful update
+      print('Successfully updated challenge with ID: $challengeId');
+      
+    } catch (e) {
+      print('Error updating challenge: $e');
+      throw Exception('Failed to update challenge');
+    }
+  }
+
   // Delete a challenge (admin only)
   Future<void> deleteChallenge(String challengeId) async {
     try {

@@ -193,7 +193,7 @@ class _CustomMeditationDetailScreenState extends State<CustomMeditationDetailScr
                     ),
                   ),
                   
-                  // Audio section (placeholder)
+                  // Enhanced Audio section
                   if (_audioUrl != null && _audioUrl!.isNotEmpty)
                     Container(
                       margin: const EdgeInsets.all(16),
@@ -212,45 +212,141 @@ class _CustomMeditationDetailScreenState extends State<CustomMeditationDetailScr
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Audio Meditation',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.headphones,
+                                color: color,
+                                size: 24,
+                              ),
+                              const SizedBox(width: 8),
+                              const Text(
+                                'Audio Meditation',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 16),
+                          
+                          // Audio player controls
                           Container(
                             width: double.infinity,
-                            height: 80,
+                            padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
                               color: color.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(15),
                             ),
-                            child: Center(
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  CircleAvatar(
-                                    backgroundColor: color,
-                                    radius: 24,
-                                    child: const Icon(
-                                      Icons.play_arrow,
-                                      color: Colors.white,
-                                      size: 32,
+                            child: Column(
+                              children: [
+                                // Play/Pause button and title
+                                Row(
+                                  children: [
+                                    GestureDetector(
+                                      onTap: () {
+                                        // TODO: Implement actual audio playback
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          const SnackBar(
+                                            content: Text('Audio playback feature coming soon!'),
+                                            duration: Duration(seconds: 2),
+                                          ),
+                                        );
+                                      },
+                                      child: CircleAvatar(
+                                        backgroundColor: color,
+                                        radius: 24,
+                                        child: const Icon(
+                                          Icons.play_arrow,
+                                          color: Colors.white,
+                                          size: 32,
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 16),
-                                  Text(
-                                    'Play Meditation',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                      color: isDarkMode ? Colors.white : Colors.black87,
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            _title,
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 16,
+                                              color: isDarkMode ? Colors.white : Colors.black87,
+                                            ),
+                                          ),
+                                          Text(
+                                            'Guided Meditation',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              color: isDarkMode ? Colors.white70 : Colors.black54,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
-                                  )
-                                ],
-                              ),
+                                    // Audio controls
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        IconButton(
+                                          icon: Icon(
+                                            Icons.replay_10,
+                                            color: color,
+                                          ),
+                                          onPressed: () {
+                                            // TODO: Implement 10-second rewind
+                                          },
+                                        ),
+                                        IconButton(
+                                          icon: Icon(
+                                            Icons.forward_10,
+                                            color: color,
+                                          ),
+                                          onPressed: () {
+                                            // TODO: Implement 10-second forward
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                                
+                                const SizedBox(height: 12),
+                                
+                                // Progress bar (placeholder)
+                                Column(
+                                  children: [
+                                    LinearProgressIndicator(
+                                      value: 0.3, // Placeholder progress
+                                      backgroundColor: Colors.grey.withOpacity(0.3),
+                                      valueColor: AlwaysStoppedAnimation<Color>(color),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text(
+                                          '2:30',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: isDarkMode ? Colors.white70 : Colors.black54,
+                                          ),
+                                        ),
+                                        Text(
+                                          '8:00',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: isDarkMode ? Colors.white70 : Colors.black54,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ),
                           ),
                         ],

@@ -136,9 +136,8 @@ class _AddEditChallengeScreenState extends State<AddEditChallengeScreen> {
         // Create new challenge
         await _challengeService.createChallenge(challenge);
       } else {
-        // Update existing challenge (not implemented in this demo)
-        // TODO: Implement update functionality in ChallengeService
-        await _challengeService.createChallenge(challenge);
+        // Update existing challenge
+        await _challengeService.updateChallenge(widget.challenge!.id, challenge);
       }
       
       if (mounted) {

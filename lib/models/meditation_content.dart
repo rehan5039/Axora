@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 
 class MeditationContent {
   final String id;
@@ -9,6 +10,7 @@ class MeditationContent {
   final Timestamp createdAt;
   final bool isActive;
   final List<Map<String, dynamic>> articlePages;
+  final List<String>? validationErrors; // Store validation errors for debugging
 
   MeditationContent({
     required this.id,
@@ -19,6 +21,7 @@ class MeditationContent {
     required this.createdAt,
     this.isActive = true,
     this.articlePages = const [],
+    this.validationErrors,
   });
   
   // Simple constructor for creating a MeditationContent with just a day number
@@ -34,7 +37,11 @@ class MeditationContent {
   factory MeditationContent.fromFirestore(DocumentSnapshot doc) {
     try {
       final data = doc.data() as Map<String, dynamic>? ?? {};
-      print('Parsing document ${doc.id} with data: $data');
+      final List<String> errors = [];
+      
+      if (kDebugMode) {
+        print('Parsing document ${doc.id} with data: $data');
+      }
       
       // Extract day value and handle different formats
       int dayValue;
@@ -42,10 +49,10 @@ class MeditationContent {
         dayValue = data['day'] as int;
       } else if (data['day'] is String) {
         dayValue = int.tryParse(data['day'] as String) ?? 0;
-        print('Warning: day field was a string, converted to int: ${data['day']} -> $dayValue');
+        errors.add('Day field was a string, converted to int: ${data['day']} -> $dayValue');
       } else {
         dayValue = 0;
-        print('Warning: day field is missing or not a valid format, using default: 0');
+        errors.add('Day field is missing or not a valid format, using default: 0');
       }
       
       // Extract article data
@@ -54,7 +61,7 @@ class MeditationContent {
         articleData = Map<String, dynamic>.from(data['article'] as Map);
       } else {
         articleData = {'title': 'No article', 'content': 'No content available'};
-        print('Warning: article field is missing or invalid format in document ${doc.id}');
+        errors.add('Article field is missing or invalid format in document ${doc.id}');
       }
       
       // Extract audio data
@@ -63,7 +70,7 @@ class MeditationContent {
         audioData = Map<String, dynamic>.from(data['audio'] as Map);
       } else {
         audioData = {'title': 'No audio', 'url': '', 'durationInSeconds': 0};
-        print('Warning: audio field is missing or invalid format in document ${doc.id}');
+        errors.add('Audio field is missing or invalid format in document ${doc.id}');
       }
       
       // Extract additional article pages
@@ -85,13 +92,23 @@ class MeditationContent {
         createdAt: data['createdAt'] as Timestamp? ?? Timestamp.now(),
         isActive: data['isActive'] as bool? ?? true,
         articlePages: pages,
+        validationErrors: errors.isNotEmpty ? errors : null,
       );
       
-      print('Successfully parsed document ${doc.id} as MeditationContent: Day ${content.day}, Title: ${content.title}');
+      // Log validation errors in debug mode
+      if (kDebugMode && errors.isNotEmpty) {
+        print('Validation warnings for document ${doc.id}: ${errors.join('; ')}');
+      }
+      
+      if (kDebugMode) {
+        print('Successfully parsed document ${doc.id} as MeditationContent: Day ${content.day}, Title: ${content.title}');
+      }
       return content;
     } catch (e) {
-      print('Error parsing document ${doc.id}: $e');
-      print('Stack trace: ${StackTrace.current}');
+      if (kDebugMode) {
+        print('Error parsing document ${doc.id}: $e');
+        print('Stack trace: ${StackTrace.current}');
+      }
       // Return a default meditation content as fallback
       return MeditationContent(
         id: doc.id,
@@ -101,6 +118,8 @@ class MeditationContent {
         audio: {'title': 'Error', 'url': '', 'durationInSeconds': 0},
         createdAt: Timestamp.now(),
         isActive: false,
+        validationErrors: ['Failed to parse document: $e'],
+      );
         articlePages: [],
       );
     }
