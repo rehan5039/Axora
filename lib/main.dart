@@ -43,6 +43,7 @@ import 'package:axora/screens/feedback_screen.dart';
 import 'package:axora/screens/admin_feedback_screen.dart';
 import 'package:axora/screens/faq_screen.dart';
 import 'package:axora/screens/app_information_screen.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 // Handle background messages (when app is closed or in background)
 @pragma('vm:entry-point')
@@ -62,6 +63,14 @@ void main() async {
     widgetsBinding.addPostFrameCallback((_) {
       debugPrint('First frame rendered');
     });
+  }
+  
+  // Keep the device screen on while the app is open
+  try {
+    await WakelockPlus.enable();
+    debugPrint('Wakelock enabled to keep screen on');
+  } catch (e) {
+    debugPrint('Failed to enable wakelock: $e');
   }
   
   try {

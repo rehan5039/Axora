@@ -7,6 +7,7 @@ import 'package:axora/widgets/axora_logo.dart';
 import 'package:axora/widgets/theme_toggle_button.dart';
 import 'package:axora/widgets/theme_showcase.dart';
 import 'package:axora/screens/meditation_journey_screen.dart';
+import 'package:axora/screens/meditation_day_screen.dart';
 import 'package:axora/services/meditation_service.dart';
 import 'package:axora/models/user_progress.dart';
 import 'package:axora/providers/notification_provider.dart';
@@ -346,22 +347,101 @@ class _MeditationTabState extends State<MeditationTab> {
                   const SizedBox(height: 24),
                   _QuickActionButton(
                     label: 'Start a Quick Meditation',
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        PageRouteBuilder(
-                          pageBuilder: (context, animation, secondaryAnimation) => 
-                            const MeditationJourneyScreen(),
-                          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                            const begin = Offset(1.0, 0.0);
-                            const end = Offset.zero;
-                            const curve = Curves.easeInOut;
-                            var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-                            var offsetAnimation = animation.drive(tween);
-                            return SlideTransition(position: offsetAnimation, child: child);
-                          },
+                    onPressed: () async {
+                      // Show loading indicator
+                      showDialog(
+                        context: context,
+                        barrierDismissible: false,
+                        builder: (context) => const Center(
+                          child: CircularProgressIndicator(),
                         ),
-                      ).then((_) => _loadUserProgress());
+                      );
+
+                      try {
+                        // Determine which day to open based on timer status
+                        final progress = _userProgress;
+                        final contents = await _meditationService.getAllMeditationContent(forAdmin: false);
+                        
+                        int dayToOpen;
+                        
+                        if (progress == null || progress.lastCompletedDay == 0) {
+                          // No progress yet, open Day 1
+                          dayToOpen = 1;
+                        } else {
+                          // Check if user can complete a new day today (24-hour timer logic)
+                          final canCompleteNewDay = await _meditationService.canCompleteNewDayToday();
+                          
+                          if (canCompleteNewDay && progress.currentDay > progress.lastCompletedDay) {
+                            // Timer expired, next day is unlocked - open the new unlocked day
+                            dayToOpen = progress.currentDay;
+                          } else {
+                            // Timer still active or no new day unlocked - open last completed day
+                            dayToOpen = progress.lastCompletedDay;
+                          }
+                        }
+                        
+                        // Find content for the determined day
+                        final dayContent = contents.firstWhere(
+                          (content) => content.day == dayToOpen,
+                          orElse: () => contents.first, // Fallback to first available content
+                        );
+
+                        // Close loading dialog
+                        if (mounted) Navigator.of(context).pop();
+
+                        // Navigate directly to the determined day's meditation
+                        final result = await Navigator.push<bool>(
+                          context,
+                          PageRouteBuilder(
+                            pageBuilder: (context, animation, secondaryAnimation) => 
+                              MeditationDayScreen(
+                                content: dayContent,
+                                onComplete: () => _loadUserProgress(),
+                              ),
+                            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                              const begin = Offset(1.0, 0.0);
+                              const end = Offset.zero;
+                              const curve = Curves.easeInOut;
+                              var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+                              var offsetAnimation = animation.drive(tween);
+                              return SlideTransition(position: offsetAnimation, child: child);
+                            },
+                          ),
+                        );
+
+                        // Reload progress if day was completed
+                        if (result == true) {
+                          _loadUserProgress();
+                        }
+                      } catch (e) {
+                        // Close loading dialog if still open
+                        if (mounted) Navigator.of(context).pop();
+                        
+                        // Show error and fallback to journey screen
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Could not load meditation content. Opening journey screen...'),
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                        
+                        // Fallback to original behavior
+                        Navigator.push(
+                          context,
+                          PageRouteBuilder(
+                            pageBuilder: (context, animation, secondaryAnimation) => 
+                              const MeditationJourneyScreen(),
+                            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                              const begin = Offset(1.0, 0.0);
+                              const end = Offset.zero;
+                              const curve = Curves.easeInOut;
+                              var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+                              var offsetAnimation = animation.drive(tween);
+                              return SlideTransition(position: offsetAnimation, child: child);
+                            },
+                          ),
+                        ).then((_) => _loadUserProgress());
+                      }
                     },
                   ),
                   const SizedBox(height: 24),
@@ -388,69 +468,29 @@ class _MeditationTabState extends State<MeditationTab> {
                     },
                   ),
                   const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _SectionTitle(title: 'Today\'s Challenge'),
-                      if (_challengeService.getActiveChallenges != null)
-                        TextButton(
-                          onPressed: () {
-                            // Show loading animation while transitioning
-                            Navigator.of(context).push(
-                              PageRouteBuilder(
-                                pageBuilder: (context, animation, secondaryAnimation) => 
-                                  const ChallengeListScreen(),
-                                transitionsBuilder: (context, animation, secondaryAnimation, child) {
-                                  const begin = Offset(1.0, 0.0);
-                                  const end = Offset.zero;
-                                  const curve = Curves.easeInOutQuart;
-                                  var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-                                  var offsetAnimation = animation.drive(tween);
-                                  return SlideTransition(position: offsetAnimation, child: child);
-                                },
-                                transitionDuration: const Duration(milliseconds: 500),
-                              ),
-                            ).then((_) => _loadChallenges());
-                          },
-                          child: Text(
-                            'See All',
-                            style: TextStyle(
-                              color: isDarkMode ? AppColors.primaryGold : AppColors.primaryGreen,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
+                  _SectionTitle(title: 'Today\'s Challenge'),
                   const SizedBox(height: 16),
-                  _isLoadingChallenges
-                      ? _ChallengeSkeleton()
-                      : _challenges.isEmpty
-                          ? _EmptyChallenges()
-                          : Column(
-                              children: [
-                                // Get the first challenge (which should be incomplete after sorting)
-                                _ChallengeItem(
-                                  challenge: _challenges.firstWhere(
-                                    (challenge) => !challenge.isCompleted,
-                                    orElse: () => _challenges[0],
-                                  ),
-                                  onTap: () {
-                                    final challenge = _challenges.firstWhere(
-                                      (challenge) => !challenge.isCompleted,
-                                      orElse: () => _challenges[0],
-                                    );
-                                    Navigator.of(context).pushNamed(
-                                      '/challenge-detail',
-                                      arguments: challenge,
-                                    ).then((_) => _loadChallenges());
-                                  },
-                                  onProgressUpdate: (String id, double progress) async {
-                                    await _challengeService.updateChallengeProgress(id, progress);
-                                    _loadChallenges();
-                                  },
-                                ),
-                              ],
-                            ),
+                  _ChallengeCategoryCard(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        PageRouteBuilder(
+                          pageBuilder: (context, animation, secondaryAnimation) => 
+                            const ChallengeListScreen(),
+                          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                            const begin = Offset(1.0, 0.0);
+                            const end = Offset.zero;
+                            const curve = Curves.easeInOut;
+                            var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+                            var offsetAnimation = animation.drive(tween);
+                            return SlideTransition(position: offsetAnimation, child: child);
+                          },
+                        ),
+                      ).then((_) => _loadChallenges());
+                    },
+                    challengeCount: _challenges.length,
+                    isLoading: _isLoadingChallenges,
+                  ),
                   const SizedBox(height: 24),
                   _SectionTitle(title: 'Meditation Quotes'),
                   const SizedBox(height: 16),
@@ -1122,6 +1162,96 @@ class _QuotesCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ChallengeCategoryCard extends StatelessWidget {
+  final VoidCallback onPressed;
+  final int challengeCount;
+  final bool isLoading;
+
+  const _ChallengeCategoryCard({
+    required this.onPressed,
+    required this.challengeCount,
+    required this.isLoading,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+    final isDarkMode = themeProvider.isDarkMode;
+    final backgroundColor = isDarkMode ? AppColors.darkCardBackground : AppColors.lightCardBackground;
+    final textColor = isDarkMode ? AppColors.darkText : AppColors.lightText;
+    
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: const BoxDecoration(
+                    color: AppColors.primaryBlue,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.task_alt,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Today\'s Challenge',
+                        style: TextStyle(
+                          color: textColor,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Complete daily mindfulness activities',
+                        style: TextStyle(
+                          color: textColor.withOpacity(0.7),
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.arrow_forward_ios,
+                  color: textColor.withOpacity(0.6),
+                  size: 16,
+                ),
+              ],
+            ),
           ],
         ),
       ),

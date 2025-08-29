@@ -21,8 +21,6 @@ flutter pub run flutter_launcher_icons
 
 flutter pub run flutter_native_splash:create
 
-dart run flutter_native_splash:create
-
 flutter run
 
 flutter run -d chrome
@@ -34,10 +32,25 @@ $ firebase init
 
 $ firebase deploy
 
+flutter build apk 
+
+{
+    flutter clean
+    flutter pub get
+    flutter pub run flutter_native_splash:remove
+    flutter pub run flutter_native_splash:create
+    flutter build apk --release
+
+
+    flutter pub run flutter_launcher_icons
+}
+
+
+ flutter pub run flutter_native_splash:remove
 
 The version in pubspec.yaml
-The versionCode and versionName in android/app/build.gradle.kts 
-Axora\android\local.properties
+The versionCode and versionName in android/app/build.gradle.
+kts
 
 
 git config --global user.name "Your Name"
@@ -51,4 +64,57 @@ git config --list
 
 
 firebase logout
-firebase login
+firebase login\
+\
+\
+✅ Goal: Remove/re-authenticate GitHub account (HTTPS credentials)
+🔧 Solution: Clear GitHub login (credentials) from Windows and re-authenticate
+🪟 Step-by-step for Windows:
+1. Open Windows Credential Manager
+
+Press Windows key
+
+Type: Credential Manager and open it
+
+Go to Windows Credentials
+
+Scroll and find any entry like:
+
+git:https://github.com
+
+
+❌ Click it and press Remove/Delete
+
+This will remove saved GitHub credentials (currently rehan5039).
+
+2. Try pushing again:
+git push origin main
+
+
+This time Git will ask:
+
+Username → its-anya
+
+Password → ⚠️ Use a Personal Access Token (PAT), not your GitHub password
+
+🔑 How to get Personal Access Token:
+
+Visit: https://github.com/settings/tokens
+
+Click “Generate new token (classic)”
+
+Give it a name and expiry
+
+Select scopes:
+
+repo
+
+workflow (optional)
+
+Generate and copy it — you won’t see it again
+
+When git asks for password, paste this token.
+
+flutter clean
+flutter pub get  
+flutter pub run flutter_native_splash:create
