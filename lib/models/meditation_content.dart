@@ -151,27 +151,45 @@ class ArticleContent {
   final String title;
   final String content;
   final String buttonText;
+  final List<String> images;
   
   ArticleContent({
     required this.title,
     required this.content,
     this.buttonText = 'Mark as Read',
+    this.images = const [],
   });
   
   factory ArticleContent.fromMap(Map<String, dynamic> map) {
+    // Handle images field - can be a list of strings or null
+    List<String> imageList = [];
+    if (map['images'] != null) {
+      if (map['images'] is List) {
+        imageList = List<String>.from(map['images'].map((item) => item.toString()));
+      }
+    }
+    
     return ArticleContent(
       title: map['title'] ?? '',
       content: map['content'] ?? '',
       buttonText: map['button'] ?? 'Mark as Read',
+      images: imageList,
     );
   }
   
   Map<String, dynamic> toMap() {
-    return {
+    final Map<String, dynamic> map = {
       'title': title,
       'content': content,
       'button': buttonText,
     };
+    
+    // Only add images if the list is not empty
+    if (images.isNotEmpty) {
+      map['images'] = images.toList();
+    }
+    
+    return map;
   }
 }
 

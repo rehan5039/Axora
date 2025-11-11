@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:axora/services/text_to_speech_service.dart';
+import 'package:axora/widgets/rich_article_content.dart';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 
@@ -79,9 +80,10 @@ class _ArticleViewerState extends State<ArticleViewer> {
             ],
           ),
           const SizedBox(height: 16.0),
-          Text(
-            widget.content,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+          RichArticleContent(
+            content: widget.content,
+            isDarkMode: Theme.of(context).brightness == Brightness.dark,
+            textStyle: Theme.of(context).textTheme.bodyLarge?.copyWith(
               height: 1.5,
             ),
           ),

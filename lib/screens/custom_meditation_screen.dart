@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:axora/models/custom_meditation.dart';
-import 'package:axora/services/meditation_service.dart';
-import 'package:axora/widgets/custom_audio_player.dart';
 import 'package:provider/provider.dart';
+import 'package:axora/models/custom_meditation.dart';
 import 'package:axora/providers/theme_provider.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:axora/widgets/custom_audio_player.dart';
+import 'package:axora/widgets/rich_article_content.dart';
+import 'package:axora/services/meditation_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class CustomMeditationScreen extends StatefulWidget {
   final CustomMeditation meditation;
@@ -301,9 +303,10 @@ class _CustomMeditationScreenState extends State<CustomMeditationScreen> with Si
                                 : Colors.grey.withOpacity(0.2),
                             ),
                           ),
-                          child: Text(
-                            articleData['content'] as String? ?? '',
-                            style: TextStyle(
+                          child: RichArticleContent(
+                            content: articleData['content'] as String? ?? '',
+                            isDarkMode: isDarkMode,
+                            textStyle: TextStyle(
                               fontSize: 15,
                               height: 1.5,
                               color: isDarkMode ? Colors.white70 : Colors.black87,

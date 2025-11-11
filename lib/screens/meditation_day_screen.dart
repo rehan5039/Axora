@@ -4,6 +4,7 @@ import 'package:axora/services/meditation_service.dart';
 import 'package:provider/provider.dart';
 import 'package:axora/providers/theme_provider.dart';
 import 'package:axora/widgets/custom_audio_player.dart';
+import 'package:axora/widgets/rich_article_content.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -968,7 +969,12 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
             itemBuilder: (context, index) {
               final page = pages[index];
               return SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
+                padding: EdgeInsets.only(
+                  left: 16,
+                  right: 16,
+                  top: 16,
+                  bottom: MediaQuery.of(context).padding.bottom + 80, // Add extra padding for Android nav bar
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -999,9 +1005,10 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
                       ],
                     ),
                     const SizedBox(height: 16),
-                    Text(
-                      page.content,
-                      style: TextStyle(
+                    RichArticleContent(
+                      content: page.content,
+                      isDarkMode: isDarkMode,
+                      textStyle: TextStyle(
                         fontSize: 16,
                         height: 1.5,
                         color: isDarkMode ? Colors.white70 : Colors.black87,
@@ -1104,7 +1111,12 @@ class _MeditationDayScreenState extends State<MeditationDayScreen> with SingleTi
 
   Widget _buildAudioTab(AudioContent audio, bool isDarkMode) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 16,
+        bottom: MediaQuery.of(context).padding.bottom + 80, // Add extra padding for Android nav bar
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [

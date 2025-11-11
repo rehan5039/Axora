@@ -34,8 +34,25 @@ class TextToSpeechService {
   Future<void> speak(String text) async {
     if (!_isPlaying) {
       _isPlaying = true;
-      await _flutterTts.speak(text);
+      // Filter out URLs before speaking
+      final cleanedText = _removeUrls(text);
+      await _flutterTts.speak(cleanedText);
     }
+  }
+  
+  // Helper method to remove URLs from text
+  String _removeUrls(String text) {
+    // Regular expression to match URLs
+    final urlPattern = RegExp(
+      r'https?://[^\s]+',
+      caseSensitive: false,
+    );
+    
+    // Remove URLs and clean up extra whitespace
+    return text
+        .replaceAll(urlPattern, '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
   }
   
   Future<void> stop() async {
