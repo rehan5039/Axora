@@ -133,6 +133,7 @@ class _RichArticleContentState extends State<RichArticleContent> {
         'pinimg.com',
         'media.istockphoto.com',
         'thumbs.dreamstime.com',
+        'cloud.appwrite.io',
       ];
       
       return commonImageHosts.any((host) => lowerText.contains(host));
