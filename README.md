@@ -216,7 +216,7 @@ dependencies:
 📧 <a href="mailto:gg.rehan1234@gmail.com">gg.rehan1234@gmail.com</a>
 
 ---
-
+<!--
 <p align="center">
   <sub>© 2025 Axora Application. All rights reserved.</sub><br>
   <sub>Made with ❤️ for a calmer world</sub>
@@ -262,3 +262,4 @@ The app is signed using a release keystore with the following details:
 - SHA-1: `01:DE:61:0A:71:CB:6E:2E:E6:AA:3E:58:C1:ED:95:84:98:B8:26:FD`
 
 Contact the project administrator for access to these files.
+-->
