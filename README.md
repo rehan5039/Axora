@@ -211,12 +211,12 @@ dependencies:
 
 **Saad**  
 📧 <a href="mailto:saadkalburge95@gmail.com">saadkalburge95@gmail.com</a>
-
+---
+<!--
 **Rehan**  
 📧 <a href="mailto:gg.rehan1234@gmail.com">gg.rehan1234@gmail.com</a>
 
----
-<!--
+
 <p align="center">
   <sub>© 2025 Axora Application. All rights reserved.</sub><br>
   <sub>Made with ❤️ for a calmer world</sub>
